@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "bun run src/server.ts",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -17,7 +18,9 @@
     "eslint": "^10.2.1",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.5.0",
+    "husky": "^9.1.7",
     "jiti": "^2.6.1",
+    "lint-staged": "^16.4.0",
     "prettier": "^3.8.3",
     "typescript-eslint": "^8.59.1"
   },
@@ -28,5 +31,11 @@
     "envalid": "^8.1.1",
     "express": "^5.2.1",
     "winston": "^3.19.0"
-  }
+  },
+  "lint-staged": {
+  "*.{ts,js}": [
+    "eslint --fix",
+    "prettier --write"
+  ]
+}
 }
