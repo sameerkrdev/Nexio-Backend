@@ -1,55 +1,64 @@
-import express from 'express';
-import type { Request } from 'express';
-import logger from './config/logger';
+import app from './app';
 import { env } from './config/dotenv';
-import { errorHandler } from './middlewares/errorHandler';
-import { indexValidationSchema, type IndexValidationSchema } from './zodSchema';
-import zodValidatorMiddleware from './middlewares/zodValidator';
-import bodyParser from 'body-parser';
+import logger from './config/logger';
 import prisma from './config/prisma';
-import createHttpError from 'http-errors';
 
-const app = express();
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
+let server: ReturnType<typeof app.listen>;
+let isShuttingDown = false;
 
-app.get('/', (req, res) => {
-  res.send('Hello from Bun + Express');
-});
+const shutdown = async (code = 0) => {
+  if (isShuttingDown) return;
+  isShuttingDown = true;
 
-interface TestRequest extends Request {
-  body: IndexValidationSchema['body'];
-}
+  logger.info('Shutting down application...');
 
-app.post(
-  '/',
-  zodValidatorMiddleware(indexValidationSchema),
-  async (req: TestRequest, res, next) => {
-    try {
-      const { email, name } = req.body;
+  try {
+    if (server) {
+      logger.info('Closing HTTP server...');
 
-      const existingUser = await prisma.user.findFirst({ where: { email } });
-      if (existingUser) {
-        const error = createHttpError(401, 'User is already exits. Try again with different email');
-        throw error;
-      }
-
-      const newUser = await prisma.user.create({
-        data: {
-          email,
-          name,
-        },
+      await new Promise<void>((resolve, reject) => {
+        server.close((err) => {
+          if (err) return reject(err);
+          resolve();
+        });
       });
 
-      res.json({ success: true, data: newUser, message: 'User is created successfully' });
-    } catch (error) {
-      next(error);
+      logger.info('HTTP server closed');
     }
-  },
-);
 
-app.use(errorHandler);
+    await prisma.$disconnect();
+  } catch (err) {
+    logger.error('Error during shutdown', err);
+  } finally {
+    process.exit(code);
+  }
+};
 
-app.listen(env.PORT, () => {
-  logger.info(`Server running on port ${env.PORT}`);
+// Process-level handlers
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled Rejection', { reason });
+  shutdown(1);
 });
+
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught Exception', { err });
+  shutdown(1);
+});
+
+const startServer = () => {
+  const PORT = env.PORT;
+
+  server = app.listen(PORT, () => {
+    logger.info(`Server running on port ${PORT}`);
+  });
+};
+
+try {
+  startServer();
+} catch (err) {
+  logger.error('Startup failed', err);
+  process.exit(1);
+}
