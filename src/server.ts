@@ -6,6 +6,8 @@ import { errorHandler } from './middlewares/errorHandler';
 import { indexValidationSchema, type IndexValidationSchema } from './zodSchema';
 import zodValidatorMiddleware from './middlewares/zodValidator';
 import bodyParser from 'body-parser';
+import prisma from './config/prisma';
+import createHttpError from 'http-errors';
 
 const app = express();
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -19,14 +21,32 @@ interface TestRequest extends Request {
   body: IndexValidationSchema['body'];
 }
 
-app.post('/', zodValidatorMiddleware(indexValidationSchema), (req: TestRequest, res, next) => {
-  try {
-    const testStr = req.body.test;
-    res.json({ test: testStr });
-  } catch (error) {
-    next(error);
-  }
-});
+app.post(
+  '/',
+  zodValidatorMiddleware(indexValidationSchema),
+  async (req: TestRequest, res, next) => {
+    try {
+      const { email, name } = req.body;
+
+      const existingUser = await prisma.user.findFirst({ where: { email } });
+      if (existingUser) {
+        const error = createHttpError(401, 'User is already exits. Try again with different email');
+        throw error;
+      }
+
+      const newUser = await prisma.user.create({
+        data: {
+          email,
+          name,
+        },
+      });
+
+      res.json({ success: true, data: newUser, message: 'User is created successfully' });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
 
 app.use(errorHandler);
 

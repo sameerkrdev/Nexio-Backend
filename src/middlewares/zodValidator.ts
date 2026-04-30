@@ -4,7 +4,6 @@ import createHttpError from 'http-errors';
 
 const zodValidatorMiddleware = <T extends z.ZodTypeAny>(schema: T) => {
   return (req: Request, _res: Response, next: NextFunction) => {
-    console.log(req.body);
     const result = schema.safeParse({
       body: req.body,
       query: req.query,

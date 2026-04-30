@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 export const indexValidationSchema = z.object({
   body: z.object({
-    test: z.string(),
+    name: z.string(),
+    email: z.email(),
   }),
 });
 

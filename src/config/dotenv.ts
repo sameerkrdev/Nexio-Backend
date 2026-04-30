@@ -9,4 +9,6 @@ export const env = cleanEnv(process.env, {
   PORT: port({ default: 3000 }),
 
   LOG_LEVEL: str({ default: 'info' }),
+
+  DATABASE_URL: str(),
 });
