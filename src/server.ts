@@ -1,7 +1,7 @@
 import app from './app';
-import { env } from './config/dotenv';
-import logger from './config/logger';
-import prisma from './config/prisma';
+import { env } from './config/dotenv.config';
+import logger from './config/logger.config';
+import prisma from './config/prisma.config';
 
 let server: ReturnType<typeof app.listen>;
 let isShuttingDown = false;

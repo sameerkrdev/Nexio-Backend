@@ -1,5 +1,5 @@
 import createHttpError from 'http-errors';
-import prisma from '../config/prisma';
+import prisma from '../config/prisma.config';
 import type { Prisma } from '../generated/prisma/client';
 
 export const createUser = async (data: Prisma.UserCreateInput) => {

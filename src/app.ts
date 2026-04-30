@@ -1,5 +1,5 @@
 import express from 'express';
-import { errorHandler } from './middlewares/errorHandler';
+import { errorHandler } from './middlewares/errorHandler.middleware';
 import bodyParser from 'body-parser';
 import userRouter from './routers/user.route';
 

@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import zodValidatorMiddleware from '../middlewares/zodValidator';
+import zodValidatorMiddleware from '../middlewares/zodValidator.middleware';
 import { userValidationSchema } from '../zodSchema/user.schema';
 import { createUser } from '../controllers/user.controller';
 
