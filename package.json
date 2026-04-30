@@ -30,12 +30,13 @@
   "dependencies": {
     "envalid": "^8.1.1",
     "express": "^5.2.1",
+    "http-errors": "^2.0.1",
     "winston": "^3.19.0"
   },
   "lint-staged": {
-  "*.{ts,js}": [
-    "eslint --fix",
-    "prettier --write"
-  ]
-}
+    "*.{ts,js}": [
+      "eslint --fix",
+      "prettier --write"
+    ]
+  }
 }
