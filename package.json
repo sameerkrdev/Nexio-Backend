@@ -9,10 +9,12 @@
     "format": "prettier --write .",
     "prepare": "husky",
     "prisma:generate": "bunx prisma generate",
-    "prisma:migrate": "bunx prisma migrate"
+    "prisma:migrate": "bunx prisma migrate",
+    "prisma:studio":"bunx prisma studio"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@prisma/extension-accelerate": "^3.0.1",
     "@types/body-parser": "^1.19.6",
     "@types/bun": "latest",
     "@types/express": "^5.0.6",

@@ -3,12 +3,14 @@
 import 'dotenv/config';
 import { defineConfig } from 'prisma/config';
 
+const isStudio = process.argv.some((arg) => arg.includes('studio'));
+
 export default defineConfig({
   schema: 'prisma/schema.prisma',
   migrations: {
     path: 'prisma/migrations',
   },
   datasource: {
-    url: process.env['DATABASE_URL'],
+    url: isStudio ? process.env.POSTGRES_DATABASE_URL : process.env.DATABASE_URL,
   },
 });

@@ -11,4 +11,13 @@ export const env = cleanEnv(process.env, {
   LOG_LEVEL: str({ default: 'info' }),
 
   DATABASE_URL: str(),
+
+  POSTGRES_DATABASE_URL: str({
+    requiredWhen() {
+      if (process.env.NODE_ENV === 'development') {
+        return true;
+      }
+      return false;
+    },
+  }),
 });
