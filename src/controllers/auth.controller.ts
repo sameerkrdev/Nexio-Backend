@@ -1,5 +1,12 @@
 import type { NextFunction, Response } from 'express';
 import type { AuthenticatedRequest } from '../types/auth.type';
+import type {
+  CheckUsernameBody,
+  SendOtpBody,
+  VerifyOtpBody,
+  RefreshTokenBody,
+  LogoutBody,
+} from '../zodSchema/auth.schema.ts';
 import * as authService from '../services/auth.service';
 
 // ─── 1. Check Username ────────────────────────────────────────────────────────
@@ -10,7 +17,7 @@ export const checkUsername = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const { username } = req.body as { username: string };
+    const { username } = req.body as CheckUsernameBody;
     const result = await authService.checkUsername(username);
 
     res.status(200).json({ success: true, data: result });
@@ -27,13 +34,9 @@ export const sendOtp = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const { phoneNumber, purpose, username } = req.body as {
-      phoneNumber: string;
-      purpose: 'signup' | 'login';
-      username?: string;
-    };
+    const { phoneNumber, purpose, username, identifier } = req.body as SendOtpBody;
 
-    await authService.sendOtp(phoneNumber, purpose, username);
+    await authService.sendOtp({ phoneNumber, purpose, username, identifier });
 
     res.status(200).json({
       success: true,
@@ -52,13 +55,7 @@ export const verifyOtp = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const { phoneNumber, otp, purpose, username, name } = req.body as {
-      phoneNumber: string;
-      otp: string;
-      purpose: 'signup' | 'login';
-      username?: string;
-      name?: string;
-    };
+    const { phoneNumber, otp, purpose, username, name, identifier } = req.body as VerifyOtpBody;
 
     // deviceId is sent as a header for mobile clients; fall back to body
     const deviceId =
@@ -73,6 +70,7 @@ export const verifyOtp = async (
       deviceId,
       username,
       name,
+      identifier,
     });
 
     res.status(200).json({
@@ -93,10 +91,7 @@ export const refreshToken = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const { refreshToken: rawRefreshToken, deviceId } = req.body as {
-      refreshToken: string;
-      deviceId: string;
-    };
+    const { refreshToken: rawRefreshToken, deviceId } = req.body as RefreshTokenBody;
 
     const tokens = await authService.refresh(rawRefreshToken, deviceId);
 
@@ -114,7 +109,7 @@ export const logout = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const { refreshToken: rawRefreshToken } = req.body as { refreshToken: string };
+    const { refreshToken: rawRefreshToken } = req.body as LogoutBody;
     await authService.logout(rawRefreshToken);
 
     res.status(200).json({ success: true, message: 'Logged out successfully.' });

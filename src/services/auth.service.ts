@@ -30,48 +30,61 @@ export const checkUsername = async (username: string): Promise<{ available: bool
  * @param purpose      "signup" | "login"
  * @param username     Required for signup — used as the Redis OTP key identifier
  */
-export const sendOtp = async (
-  phoneNumber: string,
-  purpose: 'signup' | 'login',
-  username?: string,
-): Promise<void> => {
-  // Rate-limit check on phone number (shared across signup/login)
-  await checkRateLimit(phoneNumber);
+export const sendOtp = async (params: {
+  purpose: 'signup' | 'login';
+  phoneNumber?: string;
+  username?: string;
+  identifier?: string;
+}): Promise<void> => {
+  const { purpose, phoneNumber, username, identifier } = params;
 
   if (purpose === 'login') {
     // Ensure user exists before sending OTP
-    const user = await prisma.user.findUnique({ where: { phoneNumber } });
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [{ username: identifier }, { phoneNumber: identifier }],
+      },
+    });
+
     if (!user) {
-      throw createHttpError(404, 'No account found with this phone number.');
+      throw createHttpError(404, 'No account found with this username or phone number.');
     }
+
+    // Rate-limit check on phone number
+    await checkRateLimit(user.phoneNumber);
 
     const otp = generateOtp();
-    await storeOtp(phoneNumber, 'login', otp);
-    await sendSmsOtp(phoneNumber, otp);
+    await storeOtp(identifier as string, 'login', otp);
+    await sendSmsOtp(user.phoneNumber, otp);
 
-    logger.info('Login OTP sent', { phone: maskPhone(phoneNumber) });
+    logger.info('Login OTP sent', { identifier, phone: maskPhone(user.phoneNumber) });
   } else {
-    // Signup: username must be provided and still available
-    if (!username) {
-      throw createHttpError(400, 'Username is required to send signup OTP.');
-    }
+    // Rate-limit check on phone number (for signup)
+    await checkRateLimit(phoneNumber as string);
 
-    const existingUsername = await prisma.user.findUnique({ where: { username } });
+    const existingUsername = await prisma.user.findUnique({
+      where: { username: username as string },
+    });
     if (existingUsername) {
       throw createHttpError(409, 'Username is already taken.');
     }
 
-    const existingPhone = await prisma.user.findUnique({ where: { phoneNumber } });
+    const existingPhone = await prisma.user.findUnique({
+      where: { phoneNumber: phoneNumber as string },
+    });
     if (existingPhone) {
       throw createHttpError(409, 'An account with this phone number already exists.');
     }
 
     const otp = generateOtp();
     // Key the OTP by username so the verify step can use it even before the user is created
-    await storeOtp(username, 'signup', otp);
-    await sendSmsOtp(phoneNumber, otp);
+    await storeOtp(username as string, 'signup', otp);
+    await sendSmsOtp(phoneNumber as string, otp);
 
-    logger.info('Signup OTP sent', { username, phone: maskPhone(phoneNumber) });
+    logger.info('Signup OTP sent', {
+      username: username as string,
+      phone: maskPhone(phoneNumber as string),
+    });
   }
 };
 
@@ -115,16 +128,21 @@ const signupWithOtp = async (params: {
 // ─── 3b. Login via OTP ────────────────────────────────────────────────────────
 
 const loginWithOtp = async (params: {
-  phoneNumber: string;
+  identifier: string;
   otp: string;
   deviceId: string;
 }): Promise<TokenPair> => {
-  const { phoneNumber, otp, deviceId } = params;
+  const { identifier, otp, deviceId } = params;
 
-  // Validate OTP (keyed by phoneNumber)
-  await validateOtp(phoneNumber, 'login', otp);
+  // Validate OTP (keyed by identifier)
+  await validateOtp(identifier, 'login', otp);
 
-  const user = await prisma.user.findUnique({ where: { phoneNumber } });
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [{ username: identifier }, { phoneNumber: identifier }],
+    },
+  });
+
   if (!user) {
     // Should not happen since sendOtp validated existence, but guard anyway
     throw createHttpError(404, 'User not found.');
@@ -138,24 +156,27 @@ const loginWithOtp = async (params: {
 // ─── 3. Unified Verify OTP (dispatches signup or login) ──────────────────────
 
 export const verifyOtp = async (params: {
-  phoneNumber: string;
   otp: string;
   purpose: 'signup' | 'login';
   deviceId: string;
-  // Signup-only
+  phoneNumber?: string;
   username?: string;
   name?: string;
+  identifier?: string;
 }): Promise<TokenPair> => {
-  const { purpose, phoneNumber, otp, deviceId, username, name } = params;
+  const { purpose, phoneNumber, otp, deviceId, username, name, identifier } = params;
 
   if (purpose === 'signup') {
-    if (!username || !name) {
-      throw createHttpError(400, 'username and name are required for signup.');
+    if (!username || !name || !phoneNumber) {
+      throw createHttpError(400, 'username, phoneNumber, and name are required for signup.');
     }
     return signupWithOtp({ username, name, phoneNumber, otp, deviceId });
   }
 
-  return loginWithOtp({ phoneNumber, otp, deviceId });
+  if (!identifier) {
+    throw createHttpError(400, 'identifier is required for login.');
+  }
+  return loginWithOtp({ identifier, otp, deviceId });
 };
 
 // ─── 4. Refresh Token Rotation ────────────────────────────────────────────────

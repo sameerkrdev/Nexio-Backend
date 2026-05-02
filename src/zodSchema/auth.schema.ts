@@ -30,10 +30,28 @@ export type CheckUsernameBody = z.infer<typeof checkUsernameSchema>['body'];
 // ─── 2. Send OTP ──────────────────────────────────────────────────────────────
 
 export const sendOtpSchema = z.object({
-  body: z.object({
-    phoneNumber: phoneNumberField,
-    purpose: z.enum(['signup', 'login']),
-  }),
+  body: z
+    .object({
+      phoneNumber: phoneNumberField.optional(),
+      purpose: z.enum(['signup', 'login']),
+      username: usernameField.optional(),
+      identifier: z.string().optional(),
+    })
+    .refine(
+      (data) => {
+        if (data.purpose === 'signup') {
+          return data.username !== undefined && data.phoneNumber !== undefined;
+        }
+        if (data.purpose === 'login') {
+          return data.identifier !== undefined;
+        }
+        return true;
+      },
+      {
+        message:
+          'Invalid payload for the requested purpose (signup requires username and phoneNumber, login requires identifier)',
+      },
+    ),
 });
 
 export type SendOtpBody = z.infer<typeof sendOtpSchema>['body'];
@@ -43,23 +61,29 @@ export type SendOtpBody = z.infer<typeof sendOtpSchema>['body'];
 export const verifyOtpSchema = z.object({
   body: z
     .object({
-      phoneNumber: phoneNumberField,
       otp: otpField,
       purpose: z.enum(['signup', 'login']),
+      phoneNumber: phoneNumberField.optional(),
       // Signup-only fields
       username: usernameField.optional(),
       name: z.string().min(1, 'Name is required').max(100).optional(),
+      // Login-only fields
+      identifier: z.string().optional(),
     })
     .refine(
       (data) => {
         if (data.purpose === 'signup') {
-          return data.username !== undefined && data.name !== undefined;
+          return (
+            data.username !== undefined && data.name !== undefined && data.phoneNumber !== undefined
+          );
+        }
+        if (data.purpose === 'login') {
+          return data.identifier !== undefined;
         }
         return true;
       },
       {
-        message: 'username and name are required for signup',
-        path: ['username'],
+        message: 'Invalid payload for the requested purpose',
       },
     ),
 });

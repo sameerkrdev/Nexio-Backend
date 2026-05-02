@@ -1,11 +1,11 @@
 import jwt from 'jsonwebtoken';
-import { env } from './dotenv.config.ts';
+import env from './dotenv.config.ts';
 import type { JwtPayload } from '../types/auth.type.ts';
 import createHttpError from 'http-errors';
 
-// Decode base64-encoded PEM keys from environment
-const privateKey = Buffer.from(env.JWT_PRIVATE_KEY, 'base64').toString('utf-8');
-const publicKey = Buffer.from(env.JWT_PUBLIC_KEY, 'base64').toString('utf-8');
+// Use raw PEM keys directly
+const privateKey = env.JWT_PRIVATE_KEY;
+const publicKey = env.JWT_PUBLIC_KEY;
 
 export const signAccessToken = (payload: JwtPayload): string => {
   return jwt.sign(payload, privateKey, {

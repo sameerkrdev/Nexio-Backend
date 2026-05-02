@@ -1,5 +1,5 @@
 import app from './app';
-import { env } from './config/dotenv.config';
+import env from './config/dotenv.config';
 import logger from './config/logger.config';
 import prisma from './config/prisma.config';
 import redis from './config/redis.config';
@@ -51,7 +51,6 @@ process.on('uncaughtException', (err) => {
 
 const startServer = () => {
   const PORT = env.PORT;
-
   server = app.listen(PORT, () => {
     logger.info(`Server running on port ${PORT}`);
   });
