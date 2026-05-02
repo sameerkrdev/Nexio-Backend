@@ -2,7 +2,7 @@ import app from './app';
 import { env } from './config/dotenv.config';
 import logger from './config/logger.config';
 import prisma from './config/prisma.config';
-
+import redis from './config/redis.config';
 let server: ReturnType<typeof app.listen>;
 let isShuttingDown = false;
 
@@ -27,6 +27,7 @@ const shutdown = async (code = 0) => {
     }
 
     await prisma.$disconnect();
+    redis.disconnect();
   } catch (err) {
     logger.error('Error during shutdown', err);
   } finally {

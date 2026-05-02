@@ -1,18 +1,22 @@
 import express from 'express';
-import { errorHandler } from './middlewares/errorHandler.middleware';
 import bodyParser from 'body-parser';
-import userRouter from './routers/user.route';
+import { errorHandler } from './middlewares/errorHandler.middleware';
+import authRouter from './routers/auth.route';
 
 const app = express();
+
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
-app.get('/', (req, res) => {
-  res.send('Hello from Bun + Express');
+// Health check
+app.get('/', (_req, res) => {
+  res.json({ success: true, message: 'Nexio API is running' });
 });
 
-app.use('api/v1/users', userRouter);
+// Auth routes
+app.use('/api/v1/auth', authRouter);
 
+// Centralized error handler — must be last
 app.use(errorHandler);
 
 export default app;

@@ -10,8 +10,8 @@ export const env = cleanEnv(process.env, {
 
   LOG_LEVEL: str({ default: 'info' }),
 
+  // Prisma / PostgreSQL
   DATABASE_URL: str(),
-
   POSTGRES_DATABASE_URL: str({
     requiredWhen() {
       if (process.env.NODE_ENV === 'development') {
@@ -20,4 +20,18 @@ export const env = cleanEnv(process.env, {
       return false;
     },
   }),
+
+  // Redis
+  REDIS_URL: str(),
+
+  // JWT RS256 (base64-encoded PEM)
+  JWT_PRIVATE_KEY: str(),
+  JWT_PUBLIC_KEY: str(),
+  JWT_ACCESS_EXPIRY: str({ default: '15m' }),
+  JWT_REFRESH_EXPIRY_DAYS: str({ default: '30' }),
+
+  // Twilio
+  TWILIO_ACCOUNT_SID: str(),
+  TWILIO_AUTH_TOKEN: str(),
+  TWILIO_PHONE_NUMBER: str(), // E.164 format e.g. +1234567890
 });
