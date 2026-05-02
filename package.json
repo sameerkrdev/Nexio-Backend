@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "bun run src/server.ts",
+    "dev": "bun --watch src/server.ts",
     "lint": "eslint .",
     "format": "prettier --write .",
     "prepare": "husky",
