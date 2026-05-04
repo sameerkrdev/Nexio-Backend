@@ -4,6 +4,7 @@ import type {
   CheckUsernameBody,
   SendOtpBody,
   VerifyOtpBody,
+  PasswordLoginBody,
   RefreshTokenBody,
   LogoutBody,
 } from '../zodSchema/auth.schema.ts';
@@ -55,7 +56,8 @@ export const verifyOtp = async (
   next: NextFunction,
 ): Promise<void> => {
   try {
-    const { phoneNumber, otp, purpose, username, name, identifier } = req.body as VerifyOtpBody;
+    const { phoneNumber, otp, purpose, username, name, password, identifier } =
+      req.body as VerifyOtpBody;
 
     // deviceId is sent as a header for mobile clients; fall back to body
     const deviceId =
@@ -70,6 +72,7 @@ export const verifyOtp = async (
       deviceId,
       username,
       name,
+      password,
       identifier,
     });
 
@@ -83,7 +86,39 @@ export const verifyOtp = async (
   }
 };
 
-// ─── 4. Refresh Token ─────────────────────────────────────────────────────────
+// ─── 4. Password Login ────────────────────────────────────────────────────────
+
+export const passwordLogin = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+): Promise<void> => {
+  try {
+    const { username, password } = req.body as PasswordLoginBody;
+
+    // deviceId is sent as a header for mobile clients; fall back to body
+    const deviceId =
+      (req.headers['x-device-id'] as string | undefined) ??
+      (req.body as { deviceId?: string }).deviceId ??
+      'unknown';
+
+    const tokens = await authService.loginWithPassword({
+      username,
+      password,
+      deviceId,
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Login successful.',
+      data: tokens,
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── 5. Refresh Token ─────────────────────────────────────────────────────────
 
 export const refreshToken = async (
   req: AuthenticatedRequest,

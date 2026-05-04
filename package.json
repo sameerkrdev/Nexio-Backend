@@ -5,6 +5,7 @@
   "private": true,
   "scripts": {
     "dev": "bun --watch src/server.ts",
+    "build": "bun build ./src/server.ts --target=bun --outdir ./dist",
     "lint": "eslint .",
     "format": "prettier --write .",
     "prepare": "husky",

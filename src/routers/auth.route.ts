@@ -5,6 +5,7 @@ import {
   checkUsernameSchema,
   sendOtpSchema,
   verifyOtpSchema,
+  passwordLoginSchema,
   refreshTokenSchema,
   logoutSchema,
 } from '../zodSchema/auth.schema';
@@ -35,6 +36,14 @@ router.post('/send-otp', zodValidatorMiddleware(sendOtpSchema), authController.s
  * Returns: { accessToken, refreshToken }
  */
 router.post('/verify-otp', zodValidatorMiddleware(verifyOtpSchema), authController.verifyOtp);
+
+/**
+ * POST /api/v1/auth/login
+ * Login with username and password
+ * Body: { username, password }
+ * Returns: { accessToken, refreshToken }
+ */
+router.post('/login', zodValidatorMiddleware(passwordLoginSchema), authController.passwordLogin);
 
 /**
  * POST /api/v1/auth/refresh

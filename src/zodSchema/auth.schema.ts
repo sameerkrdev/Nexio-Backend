@@ -17,6 +17,11 @@ const otpField = z
   .length(6, 'OTP must be exactly 6 digits')
   .regex(/^\d{6}$/, 'OTP must contain only digits');
 
+const passwordField = z
+  .string()
+  .min(6, 'Password must be at least 6 characters')
+  .max(100, 'Password must be at most 100 characters');
+
 // ─── 1. Check Username ────────────────────────────────────────────────────────
 
 export const checkUsernameSchema = z.object({
@@ -67,6 +72,7 @@ export const verifyOtpSchema = z.object({
       // Signup-only fields
       username: usernameField.optional(),
       name: z.string().min(1, 'Name is required').max(100).optional(),
+      password: passwordField.optional(), // Optional password for signup
       // Login-only fields
       identifier: z.string().optional(),
     })
@@ -90,7 +96,18 @@ export const verifyOtpSchema = z.object({
 
 export type VerifyOtpBody = z.infer<typeof verifyOtpSchema>['body'];
 
-// ─── 4. Refresh Token ─────────────────────────────────────────────────────────
+// ─── 4. Password Login ────────────────────────────────────────────────────────
+
+export const passwordLoginSchema = z.object({
+  body: z.object({
+    username: usernameField,
+    password: passwordField,
+  }),
+});
+
+export type PasswordLoginBody = z.infer<typeof passwordLoginSchema>['body'];
+
+// ─── 5. Refresh Token ─────────────────────────────────────────────────────────
 
 export const refreshTokenSchema = z.object({
   body: z.object({
@@ -101,7 +118,7 @@ export const refreshTokenSchema = z.object({
 
 export type RefreshTokenBody = z.infer<typeof refreshTokenSchema>['body'];
 
-// ─── 5. Logout ────────────────────────────────────────────────────────────────
+// ─── 6. Logout ────────────────────────────────────────────────────────────────
 
 export const logoutSchema = z.object({
   body: z.object({
