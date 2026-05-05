@@ -10,27 +10,80 @@ datasource db {
   provider = "postgresql"
 }
 
+enum PaymentStatus {
+  pending
+  completed
+  failed
+  expired
+  cancelled
+}
+
+enum Currency {
+  SOL
+  USDT
+  USDC
+  LINK
+}
+
 model User {
-  id            String         @id @default(uuid())
-  username      String         @unique
-  phoneNumber   String         @unique
-  name          String
-  password      String? // Optional: bcrypt hashed password
-  createdAt     DateTime       @default(now())
-  refreshTokens RefreshToken[]
+  id              String         @id @default(uuid()) @map("id")
+  username        String         @unique @map("username")
+  phoneNumber     String         @unique @map("phone_number")
+  name            String         @map("name")
+  password        String?        @map("password") // Optional: bcrypt hashed password
+  email           String?        @map("email")
+  solanaPublicKey String?        @unique @map("solana_public_key")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  refreshTokens   RefreshToken[]
+  payments        Payment[]      @relation("SenderPayments")
+
+  @@map("users")
 }
 
 model RefreshToken {
-  id         String   @id @default(uuid())
-  userId     String
-  tokenHash  String // bcrypt(12) hash — for rotation verification
-  lookupHash String   @unique // sha256 — fast deterministic lookup for logout
-  deviceId   String
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
+  id         String   @id @default(uuid()) @map("id")
+  userId     String   @map("user_id")
+  tokenHash  String   @map("token_hash") // bcrypt(12) hash — for rotation verification
+  lookupHash String   @unique @map("lookup_hash") // sha256 — fast deterministic lookup for logout
+  deviceId   String   @map("device_id")
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([deviceId])
+  @@map("refresh_tokens")
+}
+
+model Payment {
+  id                String        @id @default(cuid()) @map("id")
+  senderId          String        @map("sender_id")
+  sender            User          @relation("SenderPayments", fields: [senderId], references: [id])
+  recipientUsername String        @map("recipient_username")
+  recipientUserId   String        @map("recipient_user_id")
+  amount            Decimal       @map("amount")
+  currency          Currency      @map("currency")
+  senderPublicKey   String        @map("sender_public_key")
+  status            PaymentStatus @default(pending) @map("status")
+  txHash            String?       @unique @map("tx_hash")
+  feeBreakdown      Json?         @map("fee_breakdown")
+  totalAmount       Decimal?      @map("total_amount")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  expiresAt         DateTime      @map("expires_at")
+  completedAt       DateTime?     @map("completed_at")
+  failureReason     String?       @map("failure_reason")
+
+  @@index([status, expiresAt])
+  @@index([senderId])
+  @@index([recipientUserId])
+  @@map("payments")
+}
+
+model WebhookCursor {
+  id            String   @id @default("singleton") @map("id")
+  lastSignature String?  @map("last_signature")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("webhook_cursor")
 }

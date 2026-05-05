@@ -1,0 +1,259 @@
+{
+    "info": {
+      "name": "Nexio Backend API (Auth + Payments + Helius)",
+      "_postman_id": "2e79f7d4-8f5a-4d7c-9d4a-1f9a6e9fd001",
+      "description": "Collection for manual testing of auth, users, payments, and webhook routes.",
+      "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+    },
+    "variable": [
+      { "key": "baseUrl", "value": "http://localhost:3000" },
+      { "key": "apiPrefix", "value": "/api/v1" },
+      { "key": "accessToken", "value": "" },
+      { "key": "refreshToken", "value": "" },
+      { "key": "deviceId", "value": "postman-device-1" },
+      { "key": "username", "value": "alice" },
+      { "key": "recipientUsername", "value": "bob" },
+      { "key": "paymentId", "value": "" },
+      { "key": "heliusWebhookSecret", "value": "replace_me" }
+    ],
+    "item": [
+      {
+        "name": "Health",
+        "item": [
+          {
+            "name": "GET /",
+            "request": {
+              "method": "GET",
+              "url": "{{baseUrl}}/"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Auth",
+        "item": [
+          {
+            "name": "POST /auth/check-username",
+            "request": {
+              "method": "POST",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"username\": \"{{username}}\"\n}" },
+              "url": "{{baseUrl}}{{apiPrefix}}/auth/check-username"
+            }
+          },
+          {
+            "name": "POST /auth/send-otp (signup)",
+            "request": {
+              "method": "POST",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"purpose\": \"signup\",\n  \"username\": \"{{username}}\",\n  \"phoneNumber\": \"+919999999999\"\n}"
+              },
+              "url": "{{baseUrl}}{{apiPrefix}}/auth/send-otp"
+            }
+          },
+          {
+            "name": "POST /auth/verify-otp (signup)",
+            "request": {
+              "method": "POST",
+              "header": [
+                { "key": "Content-Type", "value": "application/json" },
+                { "key": "x-device-id", "value": "{{deviceId}}" }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"purpose\": \"signup\",\n  \"otp\": \"123456\",\n  \"username\": \"{{username}}\",\n  \"name\": \"Alice\",\n  \"phoneNumber\": \"+919999999999\",\n  \"password\": \"secret123\"\n}"
+              },
+              "url": "{{baseUrl}}{{apiPrefix}}/auth/verify-otp"
+            }
+          },
+          {
+            "name": "POST /auth/login",
+            "request": {
+              "method": "POST",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"username\": \"{{username}}\",\n  \"password\": \"secret123\"\n}"
+              },
+              "url": "{{baseUrl}}{{apiPrefix}}/auth/login"
+            }
+          },
+          {
+            "name": "POST /auth/refresh",
+            "request": {
+              "method": "POST",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\",\n  \"deviceId\": \"{{deviceId}}\"\n}"
+              },
+              "url": "{{baseUrl}}{{apiPrefix}}/auth/refresh"
+            }
+          },
+          {
+            "name": "POST /auth/logout",
+            "request": {
+              "method": "POST",
+              "header": [{ "key": "Content-Type", "value": "application/json" }],
+              "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" },
+              "url": "{{baseUrl}}{{apiPrefix}}/auth/logout"
+            }
+          },
+          {
+            "name": "GET /auth/me",
+            "request": {
+              "method": "GET",
+              "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+              "url": "{{baseUrl}}{{apiPrefix}}/auth/me"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Users",
+        "item": [
+          {
+            "name": "GET /users/by-username/:username",
+            "request": {
+              "method": "GET",
+              "url": "{{baseUrl}}{{apiPrefix}}/users/by-username/{{recipientUsername}}"
+            }
+          },
+          {
+            "name": "PATCH /users/me/wallet",
+            "request": {
+              "method": "PATCH",
+              "header": [
+                { "key": "Content-Type", "value": "application/json" },
+                { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"solanaPublicKey\": \"YourSenderSolanaPublicKeyHere\"\n}"
+              },
+              "url": "{{baseUrl}}{{apiPrefix}}/users/me/wallet"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Payments",
+        "item": [
+          {
+            "name": "POST /payments/create (SOL)",
+            "request": {
+              "method": "POST",
+              "header": [
+                { "key": "Content-Type", "value": "application/json" },
+                { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"recipientUsername\": \"{{recipientUsername}}\",\n  \"amount\": \"0.01\",\n  \"currency\": \"SOL\"\n}"
+              },
+              "url": "{{baseUrl}}{{apiPrefix}}/payments/create"
+            }
+          },
+          {
+            "name": "POST /payments/create (USDT)",
+            "request": {
+              "method": "POST",
+              "header": [
+                { "key": "Content-Type", "value": "application/json" },
+                { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"recipientUsername\": \"{{recipientUsername}}\",\n  \"amount\": \"5.5\",\n  \"currency\": \"USDT\"\n}"
+              },
+              "url": "{{baseUrl}}{{apiPrefix}}/payments/create"
+            }
+          },
+          {
+            "name": "POST /payments/create (USDC)",
+            "request": {
+              "method": "POST",
+              "header": [
+                { "key": "Content-Type", "value": "application/json" },
+                { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"recipientUsername\": \"{{recipientUsername}}\",\n  \"amount\": \"1.0\",\n  \"currency\": \"USDC\"\n}"
+              },
+              "url": "{{baseUrl}}{{apiPrefix}}/payments/create"
+            }
+          },
+          {
+            "name": "POST /payments/create (LINK)",
+            "request": {
+              "method": "POST",
+              "header": [
+                { "key": "Content-Type", "value": "application/json" },
+                { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "{\n  \"recipientUsername\": \"{{recipientUsername}}\",\n  \"amount\": \"0.25\",\n  \"currency\": \"LINK\"\n}"
+              },
+              "url": "{{baseUrl}}{{apiPrefix}}/payments/create"
+            }
+          },
+          {
+            "name": "GET /payments/:id",
+            "request": {
+              "method": "GET",
+              "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+              "url": "{{baseUrl}}{{apiPrefix}}/payments/{{paymentId}}"
+            }
+          },
+          {
+            "name": "POST /payments/:id/cancel",
+            "request": {
+              "method": "POST",
+              "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+              "url": "{{baseUrl}}{{apiPrefix}}/payments/{{paymentId}}/cancel"
+            }
+          },
+          {
+            "name": "GET /payments/history",
+            "request": {
+              "method": "GET",
+              "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+              "url": {
+                "raw": "{{baseUrl}}{{apiPrefix}}/payments/history?page=1&limit=20",
+                "host": ["{{baseUrl}}"],
+                "path": ["{{apiPrefix}}", "payments", "history"],
+                "query": [
+                  { "key": "page", "value": "1" },
+                  { "key": "limit", "value": "20" }
+                ]
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "Webhooks",
+        "item": [
+          {
+            "name": "POST /webhooks/helius",
+            "request": {
+              "method": "POST",
+              "header": [
+                { "key": "Content-Type", "value": "application/json" },
+                { "key": "helius-auth-token", "value": "{{heliusWebhookSecret}}" }
+              ],
+              "body": {
+                "mode": "raw",
+                "raw": "[\n  {\n    \"signature\": \"5xFakeSig\",\n    \"nativeTransfers\": [],\n    \"tokenTransfers\": [],\n    \"instructions\": []\n  }\n]"
+              },
+              "url": "{{baseUrl}}{{apiPrefix}}/webhooks/helius"
+            }
+          }
+        ]
+      }
+    ]
+  }

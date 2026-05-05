@@ -3,6 +3,8 @@ import env from './config/dotenv.config';
 import logger from './config/logger.config';
 import prisma from './config/prisma.config';
 import redis from './config/redis.config';
+import { startExpiryWorker, stopExpiryWorker } from './workers/expiry.worker';
+import { validateStartupConfig } from './config/startupValidation';
 let server: ReturnType<typeof app.listen>;
 let isShuttingDown = false;
 
@@ -28,6 +30,7 @@ const shutdown = async (code = 0) => {
 
     await prisma.$disconnect();
     redis.disconnect();
+    stopExpiryWorker();
   } catch (err) {
     logger.error('Error during shutdown', err);
   } finally {
@@ -49,15 +52,17 @@ process.on('uncaughtException', (err) => {
   shutdown(1);
 });
 
-const startServer = () => {
+const startServer = async () => {
+  await validateStartupConfig();
   const PORT = env.PORT;
   server = app.listen(PORT, () => {
     logger.info(`Server running on port ${PORT}`);
   });
+  startExpiryWorker();
 };
 
 try {
-  startServer();
+  await startServer();
 } catch (err) {
   logger.error('Startup failed', err);
   process.exit(1);

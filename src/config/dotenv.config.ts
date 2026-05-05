@@ -1,4 +1,4 @@
-import { cleanEnv, str, port, makeValidator } from 'envalid';
+import { bool, cleanEnv, num, port, str } from 'envalid';
 
 const env = cleanEnv(process.env, {
   NODE_ENV: str({
@@ -30,6 +30,27 @@ const env = cleanEnv(process.env, {
   TWILIO_ACCOUNT_SID: str(),
   TWILIO_AUTH_TOKEN: str(),
   TWILIO_PHONE_NUMBER: str(),
+
+  // Helius + Solana
+  HELIUS_API_KEY: str(),
+  HELIUS_RPC_URL: str(),
+  HELIUS_DEVNET_RPC_URL: str(),
+  HELIUS_WEBHOOK_SECRET: str(),
+  SOLANA_NETWORK: str({
+    choices: ['mainnet', 'devnet'],
+    default: 'mainnet',
+  }),
+  NEXIO_WALLET: str(),
+
+  // Token mints
+  USDT_MINT_ADDRESS: str(),
+  USDC_MINT_ADDRESS: str(),
+  LINK_MINT_ADDRESS: str(),
+
+  // Payment behavior
+  SERVICE_FEE_PERCENT: num({ default: 0.5 }),
+  ACCEPT_OVERPAYMENT: bool({ default: true }),
+  TX_EXPIRY_MINUTES: num({ default: 10 }),
 });
 
 export default env;

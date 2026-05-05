@@ -9,9 +9,13 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "prepare": "husky",
+    "setup:nexio-atas": "bun run scripts/setup-nexio-atas.ts",
+    "setup:custodial-wallet-keys": "bun run scripts/generate-custodial-wallet-keys.ts",
+    "setup:add-devnet-funds": "bun run scripts/add-devnet-funds.ts",
     "prisma:generate": "bunx prisma generate",
-    "prisma:migrate": "bunx prisma migrate",
-    "prisma:studio": "bunx prisma studio"
+    "prisma:migrate": "bunx prisma migrate dev",
+    "prisma:studio": "bunx prisma studio",
+    "prisma:reset": "bunx prisma migrate reset"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -38,8 +42,12 @@
   },
   "dependencies": {
     "@prisma/client": "^7.8.0",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.98.4",
     "bcryptjs": "^3.0.3",
     "body-parser": "^2.2.2",
+    "bs58": "^6.0.0",
+    "decimal.js": "^10.6.0",
     "envalid": "^8.1.1",
     "express": "^5.2.1",
     "http-errors": "^2.0.1",
