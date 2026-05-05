@@ -6,6 +6,7 @@ import { withRpcRetry } from '../utils/solana';
 import type { Transaction } from '@solana/web3.js';
 
 export interface FeeBreakdown {
+  [key: string]: string | Currency;
   baseAmount: string;
   networkFee: string;
   networkFeeCurrency: 'SOL';

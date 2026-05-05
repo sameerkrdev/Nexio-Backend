@@ -1,10 +1,6 @@
 import bs58 from 'bs58';
-import {
-  ParsedInstruction,
-  ParsedTransactionWithMeta,
-  PublicKey,
-  TransactionInstruction,
-} from '@solana/web3.js';
+import { PublicKey, TransactionInstruction } from '@solana/web3.js';
+import type { ParsedInstruction, ParsedTransactionWithMeta } from '@solana/web3.js';
 
 export const MEMO_PROGRAM_ID = 'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr';
 

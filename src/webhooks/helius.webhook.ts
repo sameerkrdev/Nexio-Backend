@@ -1,12 +1,13 @@
 import crypto from 'crypto';
 import type { Request, Response } from 'express';
-import { PaymentStatus } from '../generated/prisma/client';
+import { PaymentStatus, type Payment } from '../generated/prisma/client';
 import env from '../config/dotenv.config';
 import logger from '../config/logger.config';
 import prisma from '../config/prisma.config';
 import { parseMemoFromHeliusPayload, parseMemoFromRawTransaction } from '../utils/memo';
 import { connection, getNexioPublicKey, withRpcRetry } from '../utils/solana';
 import { parseHeliusPayload, validatePaymentTransfer } from '../services/verification.service';
+import { convertAndCredit } from '../services/wallet.service';
 
 const updateCursor = async (signature: string) => {
   await prisma.webhookCursor.upsert({
@@ -45,7 +46,7 @@ const markPaymentFailed = async (params: {
   return result;
 };
 
-const markPaymentCompleted = async (params: { paymentId: string; signature: string }) => {
+const markPaymentCompleted = async (params: { payment: Payment; signature: string }) => {
   const result = await prisma.$transaction(async (tx) => {
     const existingByTxHash = await tx.payment.findUnique({
       where: { txHash: params.signature },
@@ -54,7 +55,7 @@ const markPaymentCompleted = async (params: { paymentId: string; signature: stri
     if (existingByTxHash) return false;
 
     const updated = await tx.payment.updateMany({
-      where: { id: params.paymentId, txHash: null },
+      where: { id: params.payment.id, txHash: null },
       data: {
         status: PaymentStatus.completed,
         txHash: params.signature,
@@ -62,7 +63,32 @@ const markPaymentCompleted = async (params: { paymentId: string; signature: stri
         failureReason: null,
       },
     });
-    return updated.count > 0;
+    if (updated.count === 0) return false;
+
+    try {
+      await convertAndCredit(
+        params.payment.recipientUserId,
+        {
+          id: params.payment.id,
+          amount: params.payment.amount,
+          currency: params.payment.currency,
+          feeBreakdown: params.payment.feeBreakdown,
+          senderId: params.payment.senderId,
+          senderPublicKey: params.payment.senderPublicKey,
+          recipientUsername: params.payment.recipientUsername,
+        },
+        tx,
+      );
+    } catch (error) {
+      logger.error('Wallet credit failed after confirmed payment', {
+        paymentId: params.payment.id,
+        recipientUserId: params.payment.recipientUserId,
+        signature: params.signature,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+
+    return true;
   });
 
   if (result) {
@@ -157,7 +183,7 @@ export const heliusWebhookHandler = async (req: Request, res: Response): Promise
       }
 
       await markPaymentCompleted({
-        paymentId: payment.id,
+        payment,
         signature: tx.signature,
       });
 

@@ -1,4 +1,5 @@
-import { Commitment, Connection, PublicKey } from '@solana/web3.js';
+import { Connection, PublicKey } from '@solana/web3.js';
+import type { Commitment } from '@solana/web3.js';
 import env from '../config/dotenv.config';
 import { withRetry } from './backoff';
 

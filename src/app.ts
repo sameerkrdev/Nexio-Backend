@@ -5,6 +5,7 @@ import authRouter from './routers/auth.route';
 import userRouter from './routers/user.route';
 import paymentRouter from './routers/payment.route';
 import webhookRouter from './routers/webhook.route';
+import walletRouter from './routers/wallet.router';
 import { requestLoggerMiddleware } from './middlewares/requestLogger.middleware';
 
 const app = express();
@@ -22,6 +23,7 @@ app.get('/', (_req, res) => {
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/users', userRouter);
 app.use('/api/v1/payments', paymentRouter);
+app.use('/api/v1/wallet', walletRouter);
 app.use('/api/v1/webhooks', webhookRouter);
 
 // Centralized error handler — must be last

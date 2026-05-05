@@ -25,6 +25,34 @@ enum Currency {
   LINK
 }
 
+enum WalletStatus {
+  active
+  frozen
+  closed
+}
+
+enum WalletTransactionType {
+  credit
+  debit
+}
+
+enum WalletTransactionStatus {
+  pending
+  completed
+  failed
+  reversed
+}
+
+enum WalletEntryReason {
+  payment_received
+  withdrawal_initiated
+  withdrawal_refunded
+  fee_charged
+  admin_credit
+  admin_debit
+  reversal
+}
+
 model User {
   id              String         @id @default(uuid()) @map("id")
   username        String         @unique @map("username")
@@ -36,6 +64,7 @@ model User {
   createdAt       DateTime       @default(now()) @map("created_at")
   refreshTokens   RefreshToken[]
   payments        Payment[]      @relation("SenderPayments")
+  wallet          Wallet?
 
   @@map("users")
 }
@@ -86,4 +115,70 @@ model WebhookCursor {
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@map("webhook_cursor")
+}
+
+model Wallet {
+  id              String       @id @default(cuid()) @map("id")
+  userId          String       @unique @map("user_id")
+  user            User         @relation(fields: [userId], references: [id])
+  currency        String       @default("INR") @map("currency")
+  balance         Decimal      @default(0) @map("balance")
+  reservedBalance Decimal      @default(0) @map("reserved_balance")
+  status          WalletStatus @default(active) @map("status")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  transactions  WalletTransaction[]
+  debitEntries  LedgerEntry[]       @relation("DebitWallet")
+  creditEntries LedgerEntry[]       @relation("CreditWallet")
+
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id                    String                  @id @default(cuid()) @map("id")
+  walletId              String                  @map("wallet_id")
+  wallet                Wallet                  @relation(fields: [walletId], references: [id])
+  type                  WalletTransactionType   @map("type")
+  amount                Decimal                 @map("amount")
+  balanceBefore         Decimal                 @map("balance_before")
+  balanceAfter          Decimal                 @map("balance_after")
+  status                WalletTransactionStatus @default(completed) @map("status")
+  reason                WalletEntryReason       @map("reason")
+  title                 String                  @map("title")
+  description           String?                 @map("description")
+  referenceType         String?                 @map("reference_type")
+  referenceId           String?                 @map("reference_id")
+  counterpartyId        String?                 @map("counterparty_id")
+  counterpartyUsername  String?                 @map("counterparty_username")
+  counterpartyName      String?                 @map("counterparty_name")
+  metadata              Json?                   @map("metadata")
+  createdAt             DateTime                @default(now()) @map("created_at")
+  ledgerEntry           LedgerEntry?
+
+  @@index([walletId, createdAt(sort: Desc)])
+  @@index([referenceType, referenceId])
+  @@map("wallet_transactions")
+}
+
+model LedgerEntry {
+  id                  String             @id @default(cuid()) @map("id")
+  debitWalletId       String             @map("debit_wallet_id")
+  creditWalletId      String             @map("credit_wallet_id")
+  debitWallet         Wallet             @relation("DebitWallet", fields: [debitWalletId], references: [id])
+  creditWallet        Wallet             @relation("CreditWallet", fields: [creditWalletId], references: [id])
+  amount              Decimal            @map("amount")
+  currency            String             @default("INR") @map("currency")
+  reason              WalletEntryReason  @map("reason")
+  walletTransactionId String?            @unique @map("wallet_transaction_id")
+  walletTransaction   WalletTransaction? @relation(fields: [walletTransactionId], references: [id])
+  referenceType       String?            @map("reference_type")
+  referenceId         String?            @map("reference_id")
+  note                String?            @map("note")
+  createdAt           DateTime           @default(now()) @map("created_at")
+
+  @@index([debitWalletId])
+  @@index([creditWalletId])
+  @@index([referenceType, referenceId])
+  @@map("ledger_entries")
 }

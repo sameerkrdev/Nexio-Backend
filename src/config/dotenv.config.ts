@@ -51,6 +51,7 @@ const env = cleanEnv(process.env, {
   SERVICE_FEE_PERCENT: num({ default: 0.5 }),
   ACCEPT_OVERPAYMENT: bool({ default: true }),
   TX_EXPIRY_MINUTES: num({ default: 10 }),
+  PLATFORM_USER_ID: str({ default: '00000000-0000-0000-0000-000000000001' }),
 });
 
 export default env;
