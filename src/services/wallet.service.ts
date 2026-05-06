@@ -2,12 +2,10 @@ import createHttpError from 'http-errors';
 import Decimal from 'decimal.js';
 import env from '../config/dotenv.config';
 import prisma from '../config/prisma.config';
-import { withRetry } from '../utils/backoff';
 import { generateTitle } from '../utils/transactionTitle';
 import { getEntriesForWallet, recordEntry, type LedgerWalletFilters } from './ledger.service';
 import { Prisma } from '../generated/prisma/client';
 import type {
-  Currency,
   Wallet,
   WalletEntryReason,
   WalletStatus,
@@ -17,18 +15,6 @@ import type {
 
 type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 type WalletClientLike = Pick<TxClient, 'wallet'>;
-
-const RATE_CACHE = new Map<
-  string,
-  { rate: string; source: 'jupiter' | 'coingecko'; updatedAt: Date }
->();
-
-const COINGECKO_IDS: Record<Currency, string> = {
-  SOL: 'solana',
-  USDT: 'tether',
-  USDC: 'usd-coin',
-  LINK: 'chainlink',
-};
 
 const isUniqueViolation = (error: unknown) =>
   typeof error === 'object' &&
@@ -43,94 +29,6 @@ const lockWalletRow = async (walletId: string, tx: TxClient) => {
 const parseDecimal = (value: Decimal.Value) => new Decimal(value);
 
 const getPlatformWallet = async (tx: TxClient) => getOrCreateWallet(env.PLATFORM_USER_ID, tx);
-
-const normalizeFeeBreakdown = (feeBreakdown: unknown) => {
-  const payload =
-    feeBreakdown && typeof feeBreakdown === 'object'
-      ? (feeBreakdown as Record<string, unknown>)
-      : {};
-  return {
-    baseCryptoAmount: String(payload.baseCryptoAmount ?? payload.baseAmount ?? '0'),
-    feeCryptoAmount: String(payload.feeCryptoAmount ?? payload.serviceFee ?? '0'),
-    totalCryptoAmount: String(payload.totalCryptoAmount ?? payload.totalAmount ?? '0'),
-    feePercent: String(payload.feePercent ?? env.SERVICE_FEE_PERCENT),
-    feeUsd: String(payload.feeUsd ?? '0'),
-  };
-};
-
-const getRateCacheKey = (cryptoCurrency: Currency, fiatCurrency: string) =>
-  `${cryptoCurrency}:${fiatCurrency.toUpperCase()}`;
-
-const fetchJupiterUsdRate = async (cryptoCurrency: Currency): Promise<Decimal> => {
-  const url = `https://price.jup.ag/v4/price?ids=${cryptoCurrency}&vsToken=USDC`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`Jupiter rate fetch failed with status ${response.status}`);
-  }
-  const json = (await response.json()) as {
-    data?: Record<string, { price?: number | string }>;
-  };
-  const raw = json.data?.[cryptoCurrency]?.price;
-  if (raw === undefined || raw === null) {
-    throw new Error('Jupiter response missing price');
-  }
-  return parseDecimal(String(raw));
-};
-
-const fetchCoingeckoRate = async (
-  cryptoCurrency: Currency,
-  fiatCurrency: string,
-): Promise<Decimal> => {
-  const coinId = COINGECKO_IDS[cryptoCurrency];
-  const vsCurrency = fiatCurrency.toLowerCase();
-  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=${vsCurrency}`;
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`CoinGecko rate fetch failed with status ${response.status}`);
-  }
-  const json = (await response.json()) as Record<string, Record<string, number | string>>;
-  const raw = json[coinId]?.[vsCurrency];
-  if (raw === undefined || raw === null) {
-    throw new Error('CoinGecko response missing rate');
-  }
-  return parseDecimal(String(raw));
-};
-
-const getExchangeRate = async (
-  cryptoCurrency: Currency,
-  fiatCurrency: string,
-): Promise<{ exchangeRate: Decimal; rateSource: 'jupiter' | 'coingecko' | 'cache' }> => {
-  const normalizedFiat = fiatCurrency.toUpperCase();
-  const key = getRateCacheKey(cryptoCurrency, normalizedFiat);
-
-  const cached = RATE_CACHE.get(key);
-
-  try {
-    if (normalizedFiat === 'USD') {
-      const jupiterRate = await withRetry(() => fetchJupiterUsdRate(cryptoCurrency));
-      RATE_CACHE.set(key, {
-        rate: jupiterRate.toString(),
-        source: 'jupiter',
-        updatedAt: new Date(),
-      });
-      return { exchangeRate: jupiterRate, rateSource: 'jupiter' };
-    }
-
-    await withRetry(() => fetchJupiterUsdRate(cryptoCurrency));
-    const coingeckoRate = await withRetry(() => fetchCoingeckoRate(cryptoCurrency, normalizedFiat));
-    RATE_CACHE.set(key, {
-      rate: coingeckoRate.toString(),
-      source: 'coingecko',
-      updatedAt: new Date(),
-    });
-    return { exchangeRate: coingeckoRate, rateSource: 'coingecko' };
-  } catch (error) {
-    if (cached) {
-      return { exchangeRate: parseDecimal(cached.rate), rateSource: 'cache' };
-    }
-    throw error;
-  }
-};
 
 export class InsufficientBalanceError extends Error {
   constructor(message = 'Insufficient available balance.') {
@@ -163,9 +61,20 @@ interface WalletMutationParams {
 
 interface ConvertAndCreditPaymentInput {
   id: string;
-  amount: Decimal.Value;
-  currency: Currency;
-  feeBreakdown?: unknown;
+  cryptoType: string;
+  cryptoAmount: Decimal.Value;
+  platformFeeAmount: Decimal.Value;
+  platformFeeCrypto: Decimal.Value;
+  totalCryptoAmount: Decimal.Value;
+  senderCurrency: string;
+  senderCurrencyAmount: Decimal.Value;
+  receiverCurrency: string;
+  receiverCurrencyAmount: Decimal.Value;
+  cryptoToSenderRate: Decimal.Value;
+  senderToReceiverRate: Decimal.Value;
+  platformFeePercent: Decimal.Value;
+  rateSource: string;
+  rateSnapshotAt: Date;
   senderId: string;
   senderPublicKey: string;
   recipientUsername: string;
@@ -445,16 +354,10 @@ export const convertAndCredit = async (
   tx: TxClient,
 ): Promise<void> => {
   const recipientWallet = await getOrCreateWallet(recipientUserId, tx);
-  const { exchangeRate, rateSource } = await getExchangeRate(
-    payment.currency,
-    recipientWallet.currency,
+  const localAmount = parseDecimal(payment.receiverCurrencyAmount);
+  const feeInReceiverCurrency = parseDecimal(payment.platformFeeAmount).mul(
+    parseDecimal(payment.senderToReceiverRate),
   );
-  const feeBreakdown = normalizeFeeBreakdown(payment.feeBreakdown);
-
-  const baseCryptoAmount = parseDecimal(payment.amount);
-  const feeCryptoAmount = parseDecimal(feeBreakdown.feeCryptoAmount);
-  const localAmount = baseCryptoAmount.mul(exchangeRate);
-  const feeLocalAmount = feeCryptoAmount.mul(exchangeRate);
 
   const sender = await tx.user.findUnique({
     where: { id: payment.senderId },
@@ -467,8 +370,8 @@ export const convertAndCredit = async (
   const title = generateTitle('credit', 'payment_received', {
     localAmount,
     currency: recipientWallet.currency,
-    cryptoAmount: baseCryptoAmount,
-    token: payment.currency,
+    cryptoAmount: payment.cryptoAmount,
+    token: payment.cryptoType,
   });
 
   await creditWallet(
@@ -484,16 +387,20 @@ export const convertAndCredit = async (
       counterpartyUsername: senderUsername,
       counterpartyName: senderName,
       metadata: {
-        baseCryptoAmount: baseCryptoAmount.toString(),
-        feeCryptoAmount: feeCryptoAmount.toString(),
-        totalCryptoAmount: feeBreakdown.totalCryptoAmount,
-        feePercent: feeBreakdown.feePercent,
-        feeLocalAmount: feeLocalAmount.toFixed(2),
-        localAmount: localAmount.toFixed(2),
-        exchangeRate: exchangeRate.toString(),
-        rateSource,
-        currency: recipientWallet.currency,
-        token: payment.currency,
+        cryptoType: payment.cryptoType,
+        cryptoAmount: String(payment.cryptoAmount),
+        platformFeeAmount: String(payment.platformFeeAmount),
+        platformFeeCrypto: String(payment.platformFeeCrypto),
+        totalCryptoAmount: String(payment.totalCryptoAmount),
+        senderCurrency: payment.senderCurrency,
+        senderCurrencyAmount: String(payment.senderCurrencyAmount),
+        receiverCurrency: payment.receiverCurrency,
+        receiverCurrencyAmount: String(payment.receiverCurrencyAmount),
+        cryptoToSenderRate: String(payment.cryptoToSenderRate),
+        senderToReceiverRate: String(payment.senderToReceiverRate),
+        platformFeePercent: String(payment.platformFeePercent),
+        rateSource: payment.rateSource,
+        rateSnapshotAt: payment.rateSnapshotAt.toISOString(),
         senderPublicKey: payment.senderPublicKey,
       },
     },
@@ -505,12 +412,12 @@ export const convertAndCredit = async (
     {
       debitWalletId: platformWallet.id,
       creditWalletId: platformWallet.id,
-      amount: feeLocalAmount,
-      currency: recipientWallet.currency,
+      amount: feeInReceiverCurrency,
+      currency: payment.receiverCurrency,
       reason: 'fee_charged',
       referenceType: 'payment',
       referenceId: payment.id,
-      note: `Platform fee ${feeBreakdown.feePercent}% on payment ${payment.id}`,
+      note: `Platform fee ${payment.platformFeePercent}% = ${payment.platformFeeAmount} ${payment.senderCurrency} (${payment.platformFeeCrypto} ${payment.cryptoType})`,
       allowSameWalletEntry: true,
     },
     tx,

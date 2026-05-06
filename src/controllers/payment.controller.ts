@@ -4,6 +4,7 @@ import type { AuthenticatedRequest } from '../types/auth.type';
 import {
   cancelPayment,
   createPayment,
+  getPaymentQuote,
   getPaymentById,
   paymentHistory,
 } from '../services/payment.service';
@@ -11,6 +12,7 @@ import type {
   CreatePaymentBody,
   PaymentHistoryQuery,
   PaymentIdParams,
+  PaymentQuoteQuery,
 } from '../zodSchema/payment.schema';
 
 export const createPaymentController = async (
@@ -26,10 +28,42 @@ export const createPaymentController = async (
     const result = await createPayment({
       userId: req.user.userId,
       recipientUsername: body.recipientUsername,
-      amount: body.amount,
-      currency: body.currency,
+      cryptoType: body.cryptoType,
+      cryptoAmount: body.cryptoAmount,
+      platformFeeAmount: body.platformFeeAmount,
+      platformFeeCrypto: body.platformFeeCrypto,
+      totalCryptoAmount: body.totalCryptoAmount,
+      senderCurrency: body.senderCurrency,
+      senderCurrencyAmount: body.senderCurrencyAmount,
+      receiverCurrency: body.receiverCurrency,
+      receiverCurrencyAmount: body.receiverCurrencyAmount,
+      cryptoToSenderRate: body.cryptoToSenderRate,
+      senderToReceiverRate: body.senderToReceiverRate,
+      platformFeePercent: body.platformFeePercent,
     });
     return res.status(201).json({ success: true, data: result });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+export const getPaymentQuoteController = async (
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    if (!req.user?.userId) {
+      throw createHttpError(401, 'Unauthorized');
+    }
+    const query = req.query as unknown as PaymentQuoteQuery;
+    const result = await getPaymentQuote({
+      senderId: req.user.userId,
+      receiverUsername: query.receiverUsername,
+      cryptoType: query.crypto,
+      senderCurrency: query.senderCurrency,
+    });
+    return res.status(200).json({ success: true, data: result });
   } catch (err) {
     return next(err);
   }

@@ -70,9 +70,20 @@ const markPaymentCompleted = async (params: { payment: Payment; signature: strin
         params.payment.recipientUserId,
         {
           id: params.payment.id,
-          amount: params.payment.amount,
-          currency: params.payment.currency,
-          feeBreakdown: params.payment.feeBreakdown,
+          cryptoType: params.payment.cryptoType,
+          cryptoAmount: params.payment.cryptoAmount,
+          platformFeeAmount: params.payment.platformFeeAmount,
+          platformFeeCrypto: params.payment.platformFeeCrypto,
+          totalCryptoAmount: params.payment.totalCryptoAmount,
+          senderCurrency: params.payment.senderCurrency,
+          senderCurrencyAmount: params.payment.senderCurrencyAmount,
+          receiverCurrency: params.payment.receiverCurrency,
+          receiverCurrencyAmount: params.payment.receiverCurrencyAmount,
+          cryptoToSenderRate: params.payment.cryptoToSenderRate,
+          senderToReceiverRate: params.payment.senderToReceiverRate,
+          platformFeePercent: params.payment.platformFeePercent,
+          rateSource: params.payment.rateSource,
+          rateSnapshotAt: params.payment.rateSnapshotAt,
           senderId: params.payment.senderId,
           senderPublicKey: params.payment.senderPublicKey,
           recipientUsername: params.payment.recipientUsername,
@@ -184,8 +195,8 @@ export const heliusWebhookHandler = async (req: Request, res: Response): Promise
 
       const result = validatePaymentTransfer({
         tx,
-        currency: payment.currency,
-        expectedTotalAmount: String(payment.totalAmount ?? payment.amount),
+        cryptoType: payment.cryptoType,
+        expectedTotalAmount: String(payment.totalCryptoAmount),
         nexioWallet,
       });
 

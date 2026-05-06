@@ -2,6 +2,7 @@ import { Router } from 'express';
 import {
   cancelPaymentController,
   createPaymentController,
+  getPaymentQuoteController,
   getPaymentController,
   paymentHistoryController,
 } from '../controllers/payment.controller';
@@ -9,6 +10,7 @@ import { verifyAccessTokenMiddleware } from '../middlewares/verifyAccessToken.mi
 import zodValidatorMiddleware from '../middlewares/zodValidator.middleware';
 import {
   createPaymentSchema,
+  paymentQuoteSchema,
   paymentHistorySchema,
   paymentIdParamSchema,
 } from '../zodSchema/payment.schema';
@@ -22,6 +24,13 @@ paymentRouter.post(
   paymentCreateRateLimit,
   zodValidatorMiddleware(createPaymentSchema),
   createPaymentController,
+);
+
+paymentRouter.get(
+  '/quote',
+  verifyAccessTokenMiddleware,
+  zodValidatorMiddleware(paymentQuoteSchema),
+  getPaymentQuoteController,
 );
 
 paymentRouter.get(

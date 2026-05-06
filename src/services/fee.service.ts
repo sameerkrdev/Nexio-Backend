@@ -1,23 +1,22 @@
 import Decimal from 'decimal.js';
-import type { Currency } from '../generated/prisma/client';
 import env from '../config/dotenv.config';
 import { lamportsToSol } from '../utils/amount';
 import { withRpcRetry } from '../utils/solana';
 import type { Transaction } from '@solana/web3.js';
 
 export interface FeeBreakdown {
-  [key: string]: string | Currency;
+  [key: string]: string;
   baseAmount: string;
   networkFee: string;
   networkFeeCurrency: 'SOL';
   serviceFee: string;
   totalAmount: string;
-  currency: Currency;
+  currency: string;
 }
 
-export const calculateAmounts = (amount: string, currency: Currency) => {
+export const calculateAmounts = (amount: string, currency: string) => {
   const baseAmount = new Decimal(amount);
-  const serviceFee = baseAmount.mul(env.SERVICE_FEE_PERCENT).div(100);
+  const serviceFee = baseAmount.mul(env.PLATFORM_FEE_PERCENT).div(100);
   const totalAmount = baseAmount.add(serviceFee);
 
   return {
@@ -39,7 +38,7 @@ export const estimateNetworkFee = async (transaction: Transaction): Promise<stri
 
 export const buildFeeBreakdown = (params: {
   amount: string;
-  currency: Currency;
+  currency: string;
   networkFee: string;
 }): FeeBreakdown => {
   const computed = calculateAmounts(params.amount, params.currency);

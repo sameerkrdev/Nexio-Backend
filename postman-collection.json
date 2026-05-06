@@ -342,6 +342,43 @@
       "name": "Payments",
       "item": [
         {
+          "name": "GET /payments/quote",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/payments/quote?crypto=SOL&senderCurrency=USD&receiverUsername={{recipientUsername}}",
+              "host": [
+                "{{baseUrl}}{{apiPrefix}}"
+              ],
+              "path": [
+                "payments",
+                "quote"
+              ],
+              "query": [
+                {
+                  "key": "crypto",
+                  "value": "SOL"
+                },
+                {
+                  "key": "senderCurrency",
+                  "value": "USD"
+                },
+                {
+                  "key": "receiverUsername",
+                  "value": "{{recipientUsername}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
           "name": "POST /payments/create (SOL)",
           "request": {
             "method": "POST",
@@ -357,7 +394,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"recipientUsername\": \"{{recipientUsername}}\",\n  \"amount\": \"0.01\",\n  \"currency\": \"SOL\"\n}"
+              "raw": "{\n  \"recipientUsername\": \"{{recipientUsername}}\",\n  \"cryptoType\": \"SOL\",\n  \"cryptoAmount\": \"0.5560\",\n  \"platformFeeAmount\": \"7.53\",\n  \"platformFeeCrypto\": \"0.00833\",\n  \"totalCryptoAmount\": \"0.56433\",\n  \"senderCurrency\": \"USD\",\n  \"senderCurrencyAmount\": \"502.26\",\n  \"receiverCurrency\": \"INR\",\n  \"receiverCurrencyAmount\": \"46283.24\",\n  \"cryptoToSenderRate\": \"903.42\",\n  \"senderToReceiverRate\": \"92.15\",\n  \"platformFeePercent\": \"1.5\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}{{apiPrefix}}/payments/create",
@@ -388,7 +425,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"recipientUsername\": \"{{recipientUsername}}\",\n  \"amount\": \"5.5\",\n  \"currency\": \"USDT\"\n}"
+              "raw": "{\n  \"recipientUsername\": \"{{recipientUsername}}\",\n  \"cryptoType\": \"USDT\",\n  \"cryptoAmount\": \"500.00\",\n  \"platformFeeAmount\": \"7.50\",\n  \"platformFeeCrypto\": \"7.50\",\n  \"totalCryptoAmount\": \"507.50\",\n  \"senderCurrency\": \"USD\",\n  \"senderCurrencyAmount\": \"500.00\",\n  \"receiverCurrency\": \"INR\",\n  \"receiverCurrencyAmount\": \"46000.00\",\n  \"cryptoToSenderRate\": \"1\",\n  \"senderToReceiverRate\": \"92\",\n  \"platformFeePercent\": \"1.5\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}{{apiPrefix}}/payments/create",
@@ -419,7 +456,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"recipientUsername\": \"{{recipientUsername}}\",\n  \"amount\": \"1.0\",\n  \"currency\": \"USDC\"\n}"
+              "raw": "{\n  \"recipientUsername\": \"{{recipientUsername}}\",\n  \"cryptoType\": \"USDC\",\n  \"cryptoAmount\": \"500.00\",\n  \"platformFeeAmount\": \"7.50\",\n  \"platformFeeCrypto\": \"7.50\",\n  \"totalCryptoAmount\": \"507.50\",\n  \"senderCurrency\": \"USD\",\n  \"senderCurrencyAmount\": \"500.00\",\n  \"receiverCurrency\": \"INR\",\n  \"receiverCurrencyAmount\": \"46000.00\",\n  \"cryptoToSenderRate\": \"1\",\n  \"senderToReceiverRate\": \"92\",\n  \"platformFeePercent\": \"1.5\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}{{apiPrefix}}/payments/create",
@@ -450,7 +487,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"recipientUsername\": \"{{recipientUsername}}\",\n  \"amount\": \"0.25\",\n  \"currency\": \"LINK\"\n}"
+              "raw": "{\n  \"recipientUsername\": \"{{recipientUsername}}\",\n  \"cryptoType\": \"LINK\",\n  \"cryptoAmount\": \"28.50\",\n  \"platformFeeAmount\": \"7.50\",\n  \"platformFeeCrypto\": \"0.43\",\n  \"totalCryptoAmount\": \"28.93\",\n  \"senderCurrency\": \"USD\",\n  \"senderCurrencyAmount\": \"500.00\",\n  \"receiverCurrency\": \"INR\",\n  \"receiverCurrencyAmount\": \"46000.00\",\n  \"cryptoToSenderRate\": \"17.54\",\n  \"senderToReceiverRate\": \"92\",\n  \"platformFeePercent\": \"1.5\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}{{apiPrefix}}/payments/create",

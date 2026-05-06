@@ -10,7 +10,6 @@ import {
   type TransactionInstruction,
 } from '@solana/web3.js';
 import Decimal from 'decimal.js';
-import type { Currency } from '../generated/prisma/client';
 import { TOKENS } from '../config/tokens';
 import { toTokenUnits } from '../utils/amount';
 import { buildMemoInstruction } from '../utils/memo';
@@ -19,8 +18,8 @@ import { connection, getNexioPublicKey, withRpcRetry } from '../utils/solana';
 interface BuildTransactionParams {
   paymentId: string;
   senderPublicKey: string;
-  currency: Currency;
-  totalAmount: string;
+  cryptoType: keyof typeof TOKENS;
+  totalCryptoAmount: string;
 }
 
 export const buildPaymentTransaction = async (
@@ -33,8 +32,8 @@ export const buildPaymentTransaction = async (
 
   const instructions: TransactionInstruction[] = [buildMemoInstruction(params.paymentId)];
 
-  if (params.currency === 'SOL') {
-    const lamports = toTokenUnits(params.totalAmount, TOKENS.SOL.decimals);
+  if (params.cryptoType === 'SOL') {
+    const lamports = toTokenUnits(params.totalCryptoAmount, TOKENS.SOL.decimals);
     instructions.push(
       SystemProgram.transfer({
         fromPubkey: sender,
@@ -43,9 +42,9 @@ export const buildPaymentTransaction = async (
       }),
     );
   } else {
-    const token = TOKENS[params.currency];
+    const token = TOKENS[params.cryptoType];
     if (!token.mint) {
-      throw new Error(`Missing mint for ${params.currency}`);
+      throw new Error(`Missing mint for ${params.cryptoType}`);
     }
 
     const senderAta = getAssociatedTokenAddressSync(token.mint, sender, false);
@@ -58,7 +57,7 @@ export const buildPaymentTransaction = async (
       );
     }
 
-    const units = new Decimal(params.totalAmount)
+    const units = new Decimal(params.totalCryptoAmount)
       .mul(new Decimal(10).pow(token.decimals))
       .toFixed(0, Decimal.ROUND_HALF_UP);
 

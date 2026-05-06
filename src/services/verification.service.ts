@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import Decimal from 'decimal.js';
-import type { Currency } from '../generated/prisma/client';
 import env from '../config/dotenv.config';
 import { TOKENS } from '../config/tokens';
 
@@ -37,15 +36,17 @@ export const parseHeliusPayload = (payload: unknown): HeliusEnhancedTransaction[
 
 export const validatePaymentTransfer = (params: {
   tx: HeliusEnhancedTransaction;
-  currency: Currency;
+  cryptoType: string;
   expectedTotalAmount: string;
   nexioWallet: string;
 }): { ok: boolean; reason?: string } => {
-  const { tx, currency, expectedTotalAmount, nexioWallet } = params;
+  const { tx, cryptoType, expectedTotalAmount, nexioWallet } = params;
+  const normalizedType = cryptoType.toUpperCase() as keyof typeof TOKENS;
+  if (!(normalizedType in TOKENS)) {
+    return { ok: false, reason: 'unsupported_crypto_type' };
+  }
 
-  console.log('+========= i AM IN VALIDATE ==========');
-
-  if (currency === 'SOL') {
+  if (normalizedType === 'SOL') {
     const transfer = tx.nativeTransfers.find((item) => item.toUserAccount === nexioWallet);
     if (!transfer) return { ok: false, reason: 'invalid_receiver' };
 
@@ -56,27 +57,20 @@ export const validatePaymentTransfer = (params: {
     if (comparison < 0) return { ok: false, reason: 'insufficient_amount' };
     if (comparison > 0 && !env.ACCEPT_OVERPAYMENT)
       return { ok: false, reason: 'overpayment_not_allowed' };
-    console.log('+========= i AM IN VALIDATE END ==========');
     return { ok: true };
   }
 
-  const token = TOKENS[currency];
+  const token = TOKENS[normalizedType];
   if (!token.mint) return { ok: false, reason: 'missing_token_mint' };
-
-  console.log('+========= i AM IN VALIDATE 1 ==========');
 
   const transfer = tx.tokenTransfers.find(
     (item) => item.toUserAccount === nexioWallet && item.mint === token.mint!.toBase58(),
   );
   if (!transfer) return { ok: false, reason: 'invalid_receiver_or_mint' };
 
-  console.log('+========= i AM IN VALIDATE 2 ==========');
-
   const expected = new Decimal(expectedTotalAmount);
   const received = new Decimal(transfer.tokenAmount);
   const comparison = received.comparedTo(expected);
-
-  console.log('+========= i AM IN VALIDATE 3 ==========');
 
   if (comparison < 0) return { ok: false, reason: 'insufficient_amount' };
   if (comparison > 0 && !env.ACCEPT_OVERPAYMENT)

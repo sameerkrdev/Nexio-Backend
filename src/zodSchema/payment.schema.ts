@@ -1,14 +1,44 @@
 import { z } from 'zod';
-import { Currency, PaymentStatus } from '../generated/prisma/client';
+import { PaymentStatus } from '../generated/prisma/client';
 
 export const createPaymentSchema = z.object({
   body: z.object({
     recipientUsername: z.string().min(1, 'recipientUsername is required'),
-    amount: z
-      .union([z.string(), z.number()])
-      .transform((value) => String(value))
-      .refine((value) => Number(value) > 0, 'amount must be greater than 0'),
-    currency: z.nativeEnum(Currency),
+    cryptoType: z
+      .string()
+      .min(1)
+      .transform((v) => v.toUpperCase()),
+    cryptoAmount: z.string().min(1),
+    platformFeeAmount: z.string().min(1),
+    platformFeeCrypto: z.string().min(1),
+    totalCryptoAmount: z.string().min(1),
+    senderCurrency: z
+      .string()
+      .min(1)
+      .transform((v) => v.toUpperCase()),
+    senderCurrencyAmount: z.string().min(1),
+    receiverCurrency: z
+      .string()
+      .min(1)
+      .transform((v) => v.toUpperCase()),
+    receiverCurrencyAmount: z.string().min(1),
+    cryptoToSenderRate: z.string().min(1),
+    senderToReceiverRate: z.string().min(1),
+    platformFeePercent: z.string().min(1),
+  }),
+});
+
+export const paymentQuoteSchema = z.object({
+  query: z.object({
+    crypto: z
+      .string()
+      .min(1)
+      .transform((v) => v.toUpperCase()),
+    senderCurrency: z
+      .string()
+      .min(1)
+      .transform((v) => v.toUpperCase()),
+    receiverUsername: z.string().min(1),
   }),
 });
 
@@ -27,5 +57,6 @@ export const paymentIdParamSchema = z.object({
 });
 
 export type CreatePaymentBody = z.infer<typeof createPaymentSchema>['body'];
+export type PaymentQuoteQuery = z.infer<typeof paymentQuoteSchema>['query'];
 export type PaymentHistoryQuery = z.infer<typeof paymentHistorySchema>['query'];
 export type PaymentIdParams = z.infer<typeof paymentIdParamSchema>['params'];

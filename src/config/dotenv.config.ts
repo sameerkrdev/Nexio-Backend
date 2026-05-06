@@ -48,9 +48,12 @@ const env = cleanEnv(process.env, {
   LINK_MINT_ADDRESS: str(),
 
   // Payment behavior
-  SERVICE_FEE_PERCENT: num({ default: 0.5 }),
   ACCEPT_OVERPAYMENT: bool({ default: true }),
-  TX_EXPIRY_MINUTES: num({ default: 10 }),
+  PLATFORM_FEE_PERCENT: num({ default: 1.5 }),
+  QUOTE_EXPIRES_IN_SECONDS: num({ default: 30 }),
+  PAYMENT_EXPIRES_IN_MINUTES: num({ default: 5 }),
+  FIAT_RATE_API_URL: str({ default: 'https://api.frankfurter.app' }),
+  FIAT_RATE_API_KEY: str({ default: '' }),
   PLATFORM_USER_ID: str({ default: '00000000-0000-0000-0000-000000000001' }),
 });
 
