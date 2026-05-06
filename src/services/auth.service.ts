@@ -7,6 +7,7 @@ import { checkRateLimit, generateOtp, storeOtp, validateOtp } from './otp.servic
 import { issueTokenPair, rotateRefreshToken, revokeRefreshToken } from './token.service';
 import { BCRYPT_ROUNDS } from '../constants';
 import type { TokenPair } from '../types/auth.type';
+import { getCurrencyFromPhoneNumber } from '../utils/currency';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -139,20 +140,40 @@ const signupWithOtp = async (params: {
   // Hash password if provided
   const hashedPassword = password ? await bcrypt.hash(password, BCRYPT_ROUNDS) : null;
 
-  // Create user
-  const user = await prisma.user.create({
-    data: {
-      username,
-      name,
-      phoneNumber,
-      password: hashedPassword,
-    },
+  // Determine currency from phone number
+  const currency = getCurrencyFromPhoneNumber(phoneNumber);
+
+  // Create user and wallet in a transaction
+  const user = await prisma.$transaction(async (tx) => {
+    // Create user
+    const newUser = await tx.user.create({
+      data: {
+        username,
+        name,
+        phoneNumber,
+        password: hashedPassword,
+      },
+    });
+
+    // Create wallet with currency based on phone number
+    await tx.wallet.create({
+      data: {
+        userId: newUser.id,
+        currency,
+        balance: '0',
+        reservedBalance: '0',
+        status: 'active',
+      },
+    });
+
+    return newUser;
   });
 
   logger.info('New user created via OTP signup', {
     userId: user.id,
     username,
     hasPassword: !!password,
+    walletCurrency: currency,
   });
 
   return issueTokenPair(user.id, user.username, deviceId);
@@ -265,7 +286,21 @@ export const logout = async (rawRefreshToken: string): Promise<void> => {
 export const getMe = async (userId: string) => {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true, username: true, name: true, phoneNumber: true, createdAt: true },
+    select: {
+      id: true,
+      username: true,
+      name: true,
+      phoneNumber: true,
+      solanaPublicKey: true,
+      createdAt: true,
+      email: true,
+      wallet: {
+        select: {
+          balance: true,
+          currency: true,
+        },
+      },
+    },
   });
 
   if (!user) {

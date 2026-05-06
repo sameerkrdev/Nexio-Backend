@@ -98,17 +98,30 @@ const markPaymentCompleted = async (params: { payment: Payment; signature: strin
 };
 
 const isAuthorizedWebhook = (req: Request): boolean => {
-  const tokenHeader = req.header('helius-auth-token');
-  if (!tokenHeader) return false;
+  // Helius can send the secret in 'helius-auth-token' or standard 'authorization' header
+  const token = req.header('helius-auth-token') || req.header('authorization');
 
-  const provided = Buffer.from(tokenHeader, 'utf8');
+  console.log(' ---------- TOKEN ---------', token);
+
+  if (!token) return false;
+
+  // Handle 'Bearer <token>' if present
+  const cleanToken = token.startsWith('Bearer ') ? token.slice(7) : token;
+
+  const provided = Buffer.from(cleanToken, 'utf8');
   const secret = Buffer.from(env.HELIUS_WEBHOOK_SECRET, 'utf8');
+
+  // console.log('PROVIDED:', provided);
+  // console.log('SECRET:', secret);
 
   if (provided.length !== secret.length) return false;
   return crypto.timingSafeEqual(provided, secret);
 };
 
 export const heliusWebhookHandler = async (req: Request, res: Response): Promise<Response> => {
+  logger.info('Helius webhook received', { body: req.body });
+
+  console.log(' ========= HELIUS RAW BODY =========', req.body);
   if (!isAuthorizedWebhook(req)) {
     logger.warn('Helius webhook auth failed', {
       ip: req.ip,
@@ -132,7 +145,10 @@ export const heliusWebhookHandler = async (req: Request, res: Response): Promise
           memo = parseMemoFromRawTransaction(rawTx);
         }
       }
-
+      // console.log(' ---------- Webhook transaction received ----------', {
+      //   signature: tx.signature,
+      //   memo,
+      // });
       logger.info('Webhook transaction received', {
         signature: tx.signature,
         memo,
@@ -143,7 +159,7 @@ export const heliusWebhookHandler = async (req: Request, res: Response): Promise
       const payment = await prisma.payment.findUnique({
         where: { id: memo },
       });
-
+      console.log('----------payment found---------', payment);
       if (!payment || payment.txHash) {
         logger.info('Webhook skipped', {
           signature: tx.signature,
@@ -174,6 +190,7 @@ export const heliusWebhookHandler = async (req: Request, res: Response): Promise
       });
 
       if (!result.ok) {
+        console.log('+========= i AM IN VALIDATE FAILED ==========');
         await markPaymentFailed({
           paymentId: payment.id,
           signature: tx.signature,

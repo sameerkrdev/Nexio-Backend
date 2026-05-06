@@ -1,10 +1,12 @@
 import { Router } from 'express';
 import { verifyAccessTokenMiddleware } from '../middlewares/verifyAccessToken.middleware';
 import zodValidatorMiddleware from '../middlewares/zodValidator.middleware';
-import { getUserByUsername, patchMyWallet } from '../controllers/user.controller';
+import { getUserByUsername, patchMyWallet, searchUsers } from '../controllers/user.controller';
 import { updateWalletSchema, usernameParamSchema } from '../zodSchema/user.schema';
 
 const userRouter = Router();
+
+userRouter.get('/search', verifyAccessTokenMiddleware, searchUsers);
 
 userRouter.get(
   '/by-username/:username',

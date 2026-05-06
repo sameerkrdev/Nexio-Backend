@@ -60,7 +60,7 @@ model User {
   name            String         @map("name")
   password        String?        @map("password") // Optional: bcrypt hashed password
   email           String?        @map("email")
-  solanaPublicKey String?        @unique @map("solana_public_key")
+  solanaPublicKey String?        @map("solana_public_key")
   createdAt       DateTime       @default(now()) @map("created_at")
   refreshTokens   RefreshToken[]
   payments        Payment[]      @relation("SenderPayments")
@@ -136,25 +136,25 @@ model Wallet {
 }
 
 model WalletTransaction {
-  id                    String                  @id @default(cuid()) @map("id")
-  walletId              String                  @map("wallet_id")
-  wallet                Wallet                  @relation(fields: [walletId], references: [id])
-  type                  WalletTransactionType   @map("type")
-  amount                Decimal                 @map("amount")
-  balanceBefore         Decimal                 @map("balance_before")
-  balanceAfter          Decimal                 @map("balance_after")
-  status                WalletTransactionStatus @default(completed) @map("status")
-  reason                WalletEntryReason       @map("reason")
-  title                 String                  @map("title")
-  description           String?                 @map("description")
-  referenceType         String?                 @map("reference_type")
-  referenceId           String?                 @map("reference_id")
-  counterpartyId        String?                 @map("counterparty_id")
-  counterpartyUsername  String?                 @map("counterparty_username")
-  counterpartyName      String?                 @map("counterparty_name")
-  metadata              Json?                   @map("metadata")
-  createdAt             DateTime                @default(now()) @map("created_at")
-  ledgerEntry           LedgerEntry?
+  id                   String                  @id @default(cuid()) @map("id")
+  walletId             String                  @map("wallet_id")
+  wallet               Wallet                  @relation(fields: [walletId], references: [id])
+  type                 WalletTransactionType   @map("type")
+  amount               Decimal                 @map("amount")
+  balanceBefore        Decimal                 @map("balance_before")
+  balanceAfter         Decimal                 @map("balance_after")
+  status               WalletTransactionStatus @default(completed) @map("status")
+  reason               WalletEntryReason       @map("reason")
+  title                String                  @map("title")
+  description          String?                 @map("description")
+  referenceType        String?                 @map("reference_type")
+  referenceId          String?                 @map("reference_id")
+  counterpartyId       String?                 @map("counterparty_id")
+  counterpartyUsername String?                 @map("counterparty_username")
+  counterpartyName     String?                 @map("counterparty_name")
+  metadata             Json?                   @map("metadata")
+  createdAt            DateTime                @default(now()) @map("created_at")
+  ledgerEntry          LedgerEntry?
 
   @@index([walletId, createdAt(sort: Desc)])
   @@index([referenceType, referenceId])
