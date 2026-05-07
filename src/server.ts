@@ -4,7 +4,9 @@ import logger from './config/logger.config';
 import prisma from './config/prisma.config';
 import redis from './config/redis.config';
 import { startExpiryWorker, stopExpiryWorker } from './workers/expiry.worker';
+import { startSwapWorker, stopSwapWorker } from './workers/swap.worker';
 import { validateStartupConfig } from './config/startupValidation';
+import { recoverStaleSwapBatches } from './services/swap.service';
 let server: ReturnType<typeof app.listen>;
 let isShuttingDown = false;
 
@@ -28,9 +30,10 @@ const shutdown = async (code = 0) => {
       logger.info('HTTP server closed');
     }
 
+    stopExpiryWorker();
+    stopSwapWorker();
     await prisma.$disconnect();
     redis.disconnect();
-    stopExpiryWorker();
   } catch (err) {
     logger.error('Error during shutdown', err);
   } finally {
@@ -54,15 +57,17 @@ process.on('uncaughtException', (err) => {
 
 const startServer = async () => {
   await validateStartupConfig();
+  await recoverStaleSwapBatches();
   const PORT = env.PORT;
   server = app.listen(PORT, () => {
     logger.info(`Server running on port ${PORT}`);
   });
   startExpiryWorker();
+  startSwapWorker();
 };
 
 try {
-  await startServer();
+  void startServer();
 } catch (err) {
   logger.error('Startup failed', err);
   process.exit(1);

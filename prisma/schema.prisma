@@ -46,6 +46,20 @@ enum WalletEntryReason {
   reversal
 }
 
+enum Currency {
+  SOL
+  USDT
+  LINK
+}
+
+enum SwapStatus {
+  pending
+  in_progress
+  completed
+  failed
+  skipped
+}
+
 model User {
   id              String         @id @default(uuid()) @map("id")
   username        String         @unique @map("username")
@@ -184,4 +198,22 @@ model LedgerEntry {
   @@index([creditWalletId])
   @@index([referenceType, referenceId])
   @@map("ledger_entries")
+}
+
+model SwapBatch {
+  id            String     @id @default(cuid()) @map("id")
+  currency      Currency   @map("currency")
+  fromAmount    Decimal    @map("from_amount")
+  toAmount      Decimal?   @map("to_amount")
+  txHash        String?    @unique @map("tx_hash")
+  status        SwapStatus @default(pending) @map("status")
+  quoteResponse Json?      @map("quote_response")
+  failureReason String?    @map("failure_reason")
+  attempts      Int        @default(0) @map("attempts")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  completedAt   DateTime?  @map("completed_at")
+
+  @@index([status])
+  @@index([currency, status])
+  @@map("swap_batches")
 }

@@ -47,6 +47,19 @@ const env = cleanEnv(process.env, {
   USDC_MINT_ADDRESS: str(),
   LINK_MINT_ADDRESS: str(),
 
+  // Jupiter
+  JUPITER_API_URL: str({ default: 'https://api.jup.ag/swap/v2' }),
+  JUPITER_PRICE_API_URL: str({ default: 'https://api.jup.ag/price/v3' }),
+  JUPITER_API_KEY: str({ default: '' }),
+
+  // Treasury swap behavior
+  NEXIO_PRIVATE_KEY: str({ default: '' }),
+  SWAP_ENABLED: bool({ default: false }),
+  SWAP_SLIPPAGE_BPS: str({ default: '' }),
+  SWAP_BATCH_INTERVAL_MINUTES: num({ default: 30 }),
+  SWAP_MIN_AMOUNT_USD: num({ default: 5 }),
+  SWAP_MAX_RETRIES: num({ default: 3 }),
+
   // Payment behavior
   ACCEPT_OVERPAYMENT: bool({ default: true }),
   PLATFORM_FEE_PERCENT: num({ default: 1.5 }),
