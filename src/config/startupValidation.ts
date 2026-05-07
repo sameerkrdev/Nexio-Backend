@@ -3,6 +3,7 @@ import env from './dotenv.config';
 import { TOKENS } from './tokens';
 import { getNexioAtaStatus } from '../services/transaction.service';
 import { getNexioKeypair, getNexioPublicKey, withRpcRetry } from '../utils/solana';
+import { validateWalletEncryptionSetup } from '../utils/encryption';
 
 const validateUrl = (value: string, name: string) => {
   try {
@@ -50,6 +51,8 @@ export const validateStartupConfig = async () => {
   void TOKENS.USDT.mint;
   void TOKENS.USDC.mint;
   void TOKENS.LINK.mint;
+  void env.WALLET_ENCRYPTION_KEY;
+  validateWalletEncryptionSetup();
   getNexioPublicKey();
   validateUrl(env.JUPITER_API_URL, 'JUPITER_API_URL');
   validateUrl(env.JUPITER_PRICE_API_URL, 'JUPITER_PRICE_API_URL');

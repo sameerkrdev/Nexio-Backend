@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "6019c889-d44e-4a75-9758-bdc8b51b0775",
-    "name": "Nexio Backend API (Auth + Payments + Wallet + Helius)",
-    "description": "Collection for manual testing of auth, users, payments, wallet, and webhook routes.",
+    "name": "Nexio Backend API (Auth + Payments + Wallet + Withdrawals + Helius)",
+    "description": "Collection for manual testing of auth, users, payments, wallet, withdrawal, and webhook routes.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "31757198",
     "_collection_link": "https://go.postman.co/collection/31757198-6019c889-d44e-4a75-9758-bdc8b51b0775?source=collection_link"
@@ -689,6 +689,277 @@
       ]
     },
     {
+      "name": "Withdrawals",
+      "item": [
+        {
+          "name": "GET /withdrawals/methods",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/withdrawals/methods",
+              "host": [
+                "{{baseUrl}}{{apiPrefix}}"
+              ],
+              "path": [
+                "withdrawals",
+                "methods"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /withdrawal-accounts (UPI)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"UPI\",\n  \"upiId\": \"user@okaxis\",\n  \"nickname\": \"My UPI\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/withdrawal-accounts",
+              "host": [
+                "{{baseUrl}}{{apiPrefix}}"
+              ],
+              "path": [
+                "withdrawal-accounts"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /withdrawal-accounts (ACH)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"ACH\",\n  \"routingNumber\": \"021000021\",\n  \"accountNumber\": \"000123456789\",\n  \"accountHolderName\": \"John Doe\",\n  \"accountType\": \"checking\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/withdrawal-accounts",
+              "host": [
+                "{{baseUrl}}{{apiPrefix}}"
+              ],
+              "path": [
+                "withdrawal-accounts"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /withdrawal-accounts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/withdrawal-accounts",
+              "host": [
+                "{{baseUrl}}{{apiPrefix}}"
+              ],
+              "path": [
+                "withdrawal-accounts"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "PATCH /withdrawal-accounts/:id/default",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/withdrawal-accounts/{{withdrawalAccountId}}/default",
+              "host": [
+                "{{baseUrl}}{{apiPrefix}}"
+              ],
+              "path": [
+                "withdrawal-accounts",
+                "{{withdrawalAccountId}}",
+                "default"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE /withdrawal-accounts/:id",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/withdrawal-accounts/{{withdrawalAccountId}}",
+              "host": [
+                "{{baseUrl}}{{apiPrefix}}"
+              ],
+              "path": [
+                "withdrawal-accounts",
+                "{{withdrawalAccountId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /withdrawals",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"accountId\": \"{{withdrawalAccountId}}\",\n  \"amount\": 500,\n  \"note\": \"Payout to bank\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/withdrawals",
+              "host": [
+                "{{baseUrl}}{{apiPrefix}}"
+              ],
+              "path": [
+                "withdrawals"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /withdrawals",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/withdrawals?page=1&limit=20",
+              "host": [
+                "{{baseUrl}}{{apiPrefix}}"
+              ],
+              "path": [
+                "withdrawals"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "status",
+                  "value": "pending",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "GET /withdrawals/:id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/withdrawals/{{withdrawalId}}",
+              "host": [
+                "{{baseUrl}}{{apiPrefix}}"
+              ],
+              "path": [
+                "withdrawals",
+                "{{withdrawalId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "POST /withdrawals/:id/cancel",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/withdrawals/{{withdrawalId}}/cancel",
+              "host": [
+                "{{baseUrl}}{{apiPrefix}}"
+              ],
+              "path": [
+                "withdrawals",
+                "{{withdrawalId}}",
+                "cancel"
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Webhooks",
       "item": [
         {
@@ -764,6 +1035,14 @@
     },
     {
       "key": "walletTransactionId",
+      "value": ""
+    },
+    {
+      "key": "withdrawalAccountId",
+      "value": ""
+    },
+    {
+      "key": "withdrawalId",
       "value": ""
     }
   ]

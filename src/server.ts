@@ -5,6 +5,7 @@ import prisma from './config/prisma.config';
 import redis from './config/redis.config';
 import { startExpiryWorker, stopExpiryWorker } from './workers/expiry.worker';
 import { startSwapWorker, stopSwapWorker } from './workers/swap.worker';
+import { startWithdrawalWorker, stopWithdrawalWorker } from './workers/withdrawal.worker';
 import { validateStartupConfig } from './config/startupValidation';
 import { recoverStaleSwapBatches } from './services/swap.service';
 let server: ReturnType<typeof app.listen>;
@@ -32,6 +33,7 @@ const shutdown = async (code = 0) => {
 
     stopExpiryWorker();
     stopSwapWorker();
+    stopWithdrawalWorker();
     await prisma.$disconnect();
     redis.disconnect();
   } catch (err) {
@@ -64,6 +66,7 @@ const startServer = async () => {
   });
   startExpiryWorker();
   startSwapWorker();
+  startWithdrawalWorker();
 };
 
 try {

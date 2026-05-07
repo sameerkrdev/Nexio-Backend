@@ -68,6 +68,31 @@ const env = cleanEnv(process.env, {
   FIAT_RATE_API_URL: str({ default: 'https://api.frankfurter.app' }),
   FIAT_RATE_API_KEY: str({ default: '' }),
   PLATFORM_USER_ID: str({ default: '00000000-0000-0000-0000-000000000001' }),
+
+  // Wallet encryption
+  WALLET_ENCRYPTION_KEY: str(),
+
+  // Withdrawal fees
+  WITHDRAWAL_FEE_IMPS: num({ default: 5 }),
+  WITHDRAWAL_FEE_NEFT: num({ default: 5 }),
+  WITHDRAWAL_FEE_ACH_PERCENT: num({ default: 0.25 }),
+  WITHDRAWAL_FEE_ACH_MIN: num({ default: 0.25 }),
+  WITHDRAWAL_FEE_WIRE: num({ default: 20 }),
+  WITHDRAWAL_FEE_SEPA: num({ default: 0.5 }),
+  WITHDRAWAL_FEE_SEPA_INSTANT_PERCENT: num({ default: 0.5 }),
+  WITHDRAWAL_FEE_ZENGIN: num({ default: 150 }),
+  WITHDRAWAL_FEE_INTERAC: num({ default: 1.5 }),
+
+  // Withdrawal daily limits
+  WITHDRAWAL_DAILY_LIMIT_INR: num({ default: 100000 }),
+  WITHDRAWAL_DAILY_LIMIT_USD: num({ default: 1000 }),
+  WITHDRAWAL_DAILY_LIMIT_EUR: num({ default: 1000 }),
+  WITHDRAWAL_DAILY_LIMIT_GBP: num({ default: 800 }),
+  WITHDRAWAL_DAILY_LIMIT_JPY: num({ default: 150000 }),
+  WITHDRAWAL_DAILY_LIMIT_SGD: num({ default: 1500 }),
+  WITHDRAWAL_DAILY_LIMIT_AUD: num({ default: 1500 }),
+  WITHDRAWAL_DAILY_LIMIT_CAD: num({ default: 1500 }),
+  WITHDRAWAL_WORKER_INTERVAL_MS: num({ default: 15000 }),
 });
 
 export default env;

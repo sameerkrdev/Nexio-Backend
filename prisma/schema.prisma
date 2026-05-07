@@ -60,6 +60,46 @@ enum SwapStatus {
   skipped
 }
 
+enum WithdrawalStatus {
+  pending
+  processing
+  completed
+  failed
+  cancelled
+  refunded
+}
+
+enum WithdrawalMethod {
+  UPI
+  BANK_TRANSFER
+  IMPS
+  NEFT
+  ZELLE
+  ACH
+  WIRE
+  FASTER_PAYMENTS
+  SEPA
+  SEPA_INSTANT
+  PAYNOW
+  FAST
+  ZENGIN
+  OSKO
+  NPP
+  INTERAC
+  EFT
+}
+
+enum CountryCode {
+  IN
+  US
+  GB
+  EU
+  JP
+  SG
+  AU
+  CA
+}
+
 model User {
   id              String         @id @default(uuid()) @map("id")
   username        String         @unique @map("username")
@@ -72,6 +112,9 @@ model User {
   refreshTokens   RefreshToken[]
   payments        Payment[]      @relation("SenderPayments")
   wallet          Wallet?
+  profile         UserProfile?
+  withdrawalAccounts WithdrawalAccount[]
+  withdrawals     Withdrawal[]
 
   @@map("users")
 }
@@ -148,8 +191,82 @@ model Wallet {
   transactions  WalletTransaction[]
   debitEntries  LedgerEntry[]       @relation("DebitWallet")
   creditEntries LedgerEntry[]       @relation("CreditWallet")
+  withdrawals   Withdrawal[]
 
   @@map("wallets")
+}
+
+model UserProfile {
+  id            String      @id @default(cuid()) @map("id")
+  userId        String      @unique @map("user_id")
+  user          User        @relation(fields: [userId], references: [id])
+  countryCode   CountryCode @map("country_code")
+  localCurrency String      @map("local_currency")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  withdrawalAccounts WithdrawalAccount[]
+
+  @@map("user_profiles")
+}
+
+model WithdrawalAccount {
+  id               String           @id @default(cuid()) @map("id")
+  userId           String           @map("user_id")
+  user             User             @relation(fields: [userId], references: [id])
+  profileId        String           @map("profile_id")
+  profile          UserProfile      @relation(fields: [profileId], references: [id])
+  method           WithdrawalMethod @map("method")
+  countryCode      CountryCode      @map("country_code")
+  isDefault        Boolean          @default(false) @map("is_default")
+  isVerified       Boolean          @default(false) @map("is_verified")
+  nickname         String?          @map("nickname")
+  encryptedDetails String           @map("encrypted_details")
+  displayName      String           @map("display_name")
+  providerName     String           @default("mock") @map("provider_name")
+  deletedAt        DateTime?        @map("deleted_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  withdrawals Withdrawal[]
+
+  @@index([userId])
+  @@index([userId, method])
+  @@map("withdrawal_accounts")
+}
+
+model Withdrawal {
+  id               String            @id @default(cuid()) @map("id")
+  userId           String            @map("user_id")
+  user             User              @relation(fields: [userId], references: [id])
+  walletId         String            @map("wallet_id")
+  wallet           Wallet            @relation(fields: [walletId], references: [id])
+  accountId        String            @map("account_id")
+  account          WithdrawalAccount @relation(fields: [accountId], references: [id])
+  amount           Decimal           @map("amount")
+  currency         String            @map("currency")
+  feeAmount        Decimal           @default(0) @map("fee_amount")
+  netAmount        Decimal           @map("net_amount")
+  status           WithdrawalStatus  @default(pending) @map("status")
+  method           WithdrawalMethod  @map("method")
+  countryCode      CountryCode       @map("country_code")
+  providerName     String            @default("mock") @map("provider_name")
+  providerReference String?          @map("provider_reference")
+  providerResponse Json?             @map("provider_response")
+  isMocked         Boolean           @default(true) @map("is_mocked")
+  mockCompletesAt  DateTime?         @map("mock_completes_at")
+  failureReason    String?           @map("failure_reason")
+  estimatedArrival String?           @map("estimated_arrival")
+  walletTransactionId String?        @unique @map("wallet_transaction_id")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+  completedAt      DateTime?         @map("completed_at")
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status])
+  @@index([walletId])
+  @@index([status, mockCompletesAt])
+  @@map("withdrawals")
 }
 
 model WalletTransaction {
