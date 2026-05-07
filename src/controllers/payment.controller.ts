@@ -110,6 +110,7 @@ export const paymentHistoryController = async (
   next: NextFunction,
 ) => {
   try {
+    // console.log('================', req.user);
     if (!req.user?.userId) {
       throw createHttpError(401, 'Unauthorized');
     }
@@ -117,10 +118,12 @@ export const paymentHistoryController = async (
     const query = req.query as unknown as PaymentHistoryQuery;
     const result = await paymentHistory({
       userId: req.user.userId,
-      page: query.page,
-      limit: query.limit,
+      page: Number(query.page) || 1,
+      limit: Number(query.limit) || 20,
       status: query.status,
     });
+
+    // console.log(result);
     return res.status(200).json({ success: true, ...result });
   } catch (err) {
     return next(err);

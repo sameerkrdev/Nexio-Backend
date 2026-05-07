@@ -67,9 +67,11 @@ const toClientPayment = (payment: {
   expiresAt: Date;
   completedAt: Date | null;
   failureReason: string | null;
+  sender?: { username: string };
 }) => {
   return {
     ...payment,
+    senderUsername: payment.sender?.username,
     cryptoAmount: String(payment.cryptoAmount),
     platformFeeAmount: String(payment.platformFeeAmount),
     platformFeeCrypto: String(payment.platformFeeCrypto),
@@ -425,7 +427,7 @@ export const paymentHistory = async (params: {
   status?: PaymentStatus;
 }) => {
   const where = {
-    senderId: params.userId,
+    OR: [{ senderId: params.userId }, { recipientUserId: params.userId }],
     ...(params.status ? { status: params.status } : {}),
   };
 
@@ -436,8 +438,17 @@ export const paymentHistory = async (params: {
       orderBy: { createdAt: 'desc' },
       skip: (params.page - 1) * params.limit,
       take: params.limit,
+      include: {
+        sender: {
+          select: {
+            username: true,
+          },
+        },
+      },
     }),
   ]);
+
+  // console.log(data);
 
   return {
     data: data.map(toClientPayment),

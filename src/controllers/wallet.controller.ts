@@ -45,9 +45,10 @@ export const listWalletTransactionsController = async (
       throw createHttpError(401, 'Unauthorized');
     }
     const query = req.query as unknown as WalletTransactionListQuery;
+    console.log('==========QUERYYYYYYY+++++++++++', query.from, query.to);
     const result = await listWalletTransactions(req.user.userId, {
-      page: query.page,
-      limit: query.limit,
+      page: Number(query.page) || 1,
+      limit: Number(query.limit) || 20,
       type: query.type,
       reason: query.reason,
       from: query.from,

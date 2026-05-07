@@ -29,22 +29,17 @@ const lockWalletRow = async (walletId: string, tx: TxClient) => {
 const parseDecimal = (value: Decimal.Value) => new Decimal(value);
 
 const getPlatformWallet = async (tx: TxClient) => {
-  // Ensure platform user exists
-  const platformUser = await tx.user.findUnique({
+  // Ensure platform user exists - create if needed
+  await tx.user.upsert({
     where: { id: env.PLATFORM_USER_ID },
+    create: {
+      id: env.PLATFORM_USER_ID,
+      username: 'ADMIN',
+      phoneNumber: '+00000000000',
+      name: 'Platform Admin',
+    },
+    update: {},
   });
-
-  if (!platformUser) {
-    // Create platform user if it doesn't exist
-    await tx.user.create({
-      data: {
-        id: env.PLATFORM_USER_ID,
-        username: 'ADMIN',
-        phoneNumber: '+00000000000',
-        name: 'Platform Admin',
-      },
-    });
-  }
 
   return getOrCreateWallet(env.PLATFORM_USER_ID, tx);
 };
