@@ -19,7 +19,7 @@ import { paymentCreateRateLimit } from '../middlewares/rateLimit';
 const paymentRouter = Router();
 
 paymentRouter.post(
-  '/create',
+  '/initiate',
   verifyAccessTokenMiddleware,
   paymentCreateRateLimit,
   zodValidatorMiddleware(createPaymentSchema),

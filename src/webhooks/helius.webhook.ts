@@ -130,10 +130,13 @@ const isAuthorizedWebhook = (req: Request): boolean => {
 };
 
 export const heliusWebhookHandler = async (req: Request, res: Response): Promise<Response> => {
+  console.log('\n🔔 ========= HELIUS WEBHOOK RECEIVED =========');
   logger.info('Helius webhook received', { body: req.body });
 
-  console.log(' ========= HELIUS RAW BODY =========', req.body);
+  console.log('📦 HELIUS RAW BODY:', JSON.stringify(req.body, null, 2));
+
   if (!isAuthorizedWebhook(req)) {
+    console.log('❌ WEBHOOK AUTH FAILED');
     logger.warn('Helius webhook auth failed', {
       ip: req.ip,
       timestamp: new Date().toISOString(),
@@ -141,37 +144,57 @@ export const heliusWebhookHandler = async (req: Request, res: Response): Promise
     return res.status(401).json({ success: false, message: 'Unauthorized webhook request' });
   }
 
+  console.log('✅ WEBHOOK AUTH PASSED');
+
   try {
     const nexioWallet = getNexioPublicKey().toBase58();
+    console.log('🏦 Nexio Wallet:', nexioWallet);
+
     const transactions = parseHeliusPayload(req.body);
+    console.log(`📝 Parsed ${transactions.length} transaction(s)`);
 
     for (const tx of transactions) {
+      console.log('\n--- Processing Transaction ---');
+      console.log('🔑 Signature:', tx.signature);
+
       let memo = parseMemoFromHeliusPayload(tx.instructions);
+      console.log('📋 Memo from payload:', memo);
 
       if (!memo) {
+        console.log('⚠️  No memo in payload, fetching from RPC...');
         const rawTx = await withRpcRetry((conn) =>
           conn.getParsedTransaction(tx.signature, 'confirmed'),
         );
         if (rawTx) {
           memo = parseMemoFromRawTransaction(rawTx);
+          console.log('📋 Memo from RPC:', memo);
         }
       }
-      // console.log(' ---------- Webhook transaction received ----------', {
-      //   signature: tx.signature,
-      //   memo,
-      // });
+
       logger.info('Webhook transaction received', {
         signature: tx.signature,
         memo,
       });
 
-      if (!memo) continue;
+      if (!memo) {
+        console.log('❌ No memo found, skipping transaction');
+        continue;
+      }
 
+      console.log('🔍 Looking up payment with ID:', memo);
       const payment = await prisma.payment.findUnique({
         where: { id: memo },
       });
-      console.log('----------payment found---------', payment);
+
+      console.log('💳 Payment found:', payment ? 'YES' : 'NO');
+      if (payment) {
+        console.log('   - Status:', payment.status);
+        console.log('   - TxHash:', payment.txHash);
+        console.log('   - Amount:', payment.totalCryptoAmount, payment.cryptoType);
+      }
+
       if (!payment || payment.txHash) {
+        console.log('⏭️  Skipping:', !payment ? 'payment_not_found' : 'payment_already_processed');
         logger.info('Webhook skipped', {
           signature: tx.signature,
           memo,
@@ -181,10 +204,12 @@ export const heliusWebhookHandler = async (req: Request, res: Response): Promise
       }
 
       if (payment.status === PaymentStatus.completed) {
+        console.log('⏭️  Payment already completed, skipping');
         continue;
       }
 
       if (payment.expiresAt < new Date()) {
+        console.log('⏰ Payment expired, marking as failed');
         await markPaymentFailed({
           paymentId: payment.id,
           signature: tx.signature,
@@ -193,6 +218,7 @@ export const heliusWebhookHandler = async (req: Request, res: Response): Promise
         continue;
       }
 
+      console.log('🔐 Validating payment transfer...');
       const result = validatePaymentTransfer({
         tx,
         cryptoType: payment.cryptoType,
@@ -201,7 +227,7 @@ export const heliusWebhookHandler = async (req: Request, res: Response): Promise
       });
 
       if (!result.ok) {
-        console.log('+========= i AM IN VALIDATE FAILED ==========');
+        console.log('❌ VALIDATION FAILED:', result.reason);
         await markPaymentFailed({
           paymentId: payment.id,
           signature: tx.signature,
@@ -210,11 +236,13 @@ export const heliusWebhookHandler = async (req: Request, res: Response): Promise
         continue;
       }
 
+      console.log('✅ VALIDATION PASSED - Marking payment as completed');
       await markPaymentCompleted({
         payment,
         signature: tx.signature,
       });
 
+      console.log('🎉 PAYMENT COMPLETED SUCCESSFULLY');
       logger.info('Payment status changed', {
         paymentId: payment.id,
         userId: payment.senderId,
@@ -223,8 +251,10 @@ export const heliusWebhookHandler = async (req: Request, res: Response): Promise
       });
     }
 
+    console.log('✅ Webhook processing complete\n');
     return res.status(200).json({ success: true });
   } catch (error) {
+    console.log('💥 WEBHOOK ERROR:', error);
     logger.error('Helius webhook processing failed', {
       error: error instanceof Error ? error.message : String(error),
     });

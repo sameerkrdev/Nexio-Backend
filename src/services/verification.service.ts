@@ -48,11 +48,28 @@ export const validatePaymentTransfer = (params: {
 
   if (normalizedType === 'SOL') {
     const transfer = tx.nativeTransfers.find((item) => item.toUserAccount === nexioWallet);
-    if (!transfer) return { ok: false, reason: 'invalid_receiver' };
+    if (!transfer) {
+      console.log('❌ No transfer found to Nexio wallet', {
+        nexioWallet,
+        nativeTransfers: tx.nativeTransfers,
+      });
+      return { ok: false, reason: 'invalid_receiver' };
+    }
 
-    const expectedLamports = new Decimal(expectedTotalAmount).mul('1000000000');
+    // Convert to lamports and round to integer (lamports cannot have decimals)
+    const expectedLamports = new Decimal(expectedTotalAmount)
+      .mul('1000000000')
+      .toDecimalPlaces(0, Decimal.ROUND_HALF_UP);
     const receivedLamports = new Decimal(transfer.amount);
     const comparison = receivedLamports.comparedTo(expectedLamports);
+
+    console.log('💰 Payment validation:', {
+      expectedSOL: expectedTotalAmount,
+      expectedLamports: expectedLamports.toString(),
+      receivedLamports: receivedLamports.toString(),
+      difference: receivedLamports.minus(expectedLamports).toString(),
+      comparison: comparison === 0 ? 'exact' : comparison < 0 ? 'insufficient' : 'overpayment',
+    });
 
     if (comparison < 0) return { ok: false, reason: 'insufficient_amount' };
     if (comparison > 0 && !env.ACCEPT_OVERPAYMENT)
@@ -68,7 +85,10 @@ export const validatePaymentTransfer = (params: {
   );
   if (!transfer) return { ok: false, reason: 'invalid_receiver_or_mint' };
 
-  const expected = new Decimal(expectedTotalAmount);
+  // Convert to token units and round to integer (token amounts use integer units based on decimals)
+  const expected = new Decimal(expectedTotalAmount)
+    .mul(new Decimal(10).pow(token.decimals))
+    .toDecimalPlaces(0, Decimal.ROUND_HALF_UP);
   const received = new Decimal(transfer.tokenAmount);
   const comparison = received.comparedTo(expected);
 

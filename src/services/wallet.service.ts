@@ -28,7 +28,26 @@ const lockWalletRow = async (walletId: string, tx: TxClient) => {
 
 const parseDecimal = (value: Decimal.Value) => new Decimal(value);
 
-const getPlatformWallet = async (tx: TxClient) => getOrCreateWallet(env.PLATFORM_USER_ID, tx);
+const getPlatformWallet = async (tx: TxClient) => {
+  // Ensure platform user exists
+  const platformUser = await tx.user.findUnique({
+    where: { id: env.PLATFORM_USER_ID },
+  });
+
+  if (!platformUser) {
+    // Create platform user if it doesn't exist
+    await tx.user.create({
+      data: {
+        id: env.PLATFORM_USER_ID,
+        username: 'ADMIN',
+        phoneNumber: '+00000000000',
+        name: 'Platform Admin',
+      },
+    });
+  }
+
+  return getOrCreateWallet(env.PLATFORM_USER_ID, tx);
+};
 
 export class InsufficientBalanceError extends Error {
   constructor(message = 'Insufficient available balance.') {
@@ -109,6 +128,7 @@ export const getOrCreateWallet = async (
   prismaClient: WalletClientLike = prisma as unknown as WalletClientLike,
 ) => {
   const existing = await prismaClient.wallet.findUnique({ where: { userId } });
+  console.log('RECEIVERS:', existing);
   if (existing) return existing;
 
   try {
@@ -353,11 +373,14 @@ export const convertAndCredit = async (
   payment: ConvertAndCreditPaymentInput,
   tx: TxClient,
 ): Promise<void> => {
+  console.log('========== recipient user id:', recipientUserId);
   const recipientWallet = await getOrCreateWallet(recipientUserId, tx);
   const localAmount = parseDecimal(payment.receiverCurrencyAmount);
   const feeInReceiverCurrency = parseDecimal(payment.platformFeeAmount).mul(
     parseDecimal(payment.senderToReceiverRate),
   );
+
+  console.log('========== SENDER ID:', payment.senderId);
 
   const sender = await tx.user.findUnique({
     where: { id: payment.senderId },
