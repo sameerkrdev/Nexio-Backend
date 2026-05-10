@@ -22,23 +22,29 @@ const markPaymentFailed = async (params: {
   signature: string;
   failureReason: string;
 }) => {
-  const result = await prisma.$transaction(async (tx) => {
-    const existingByTxHash = await tx.payment.findUnique({
-      where: { txHash: params.signature },
-      select: { id: true },
-    });
-    if (existingByTxHash) return false;
+  const result = await prisma.$transaction(
+    async (tx) => {
+      const existingByTxHash = await tx.payment.findUnique({
+        where: { txHash: params.signature },
+        select: { id: true },
+      });
+      if (existingByTxHash) return false;
 
-    const updated = await tx.payment.updateMany({
-      where: { id: params.paymentId, txHash: null },
-      data: {
-        status: PaymentStatus.failed,
-        failureReason: params.failureReason,
-        txHash: params.signature,
-      },
-    });
-    return updated.count > 0;
-  });
+      const updated = await tx.payment.updateMany({
+        where: { id: params.paymentId, txHash: null },
+        data: {
+          status: PaymentStatus.failed,
+          failureReason: params.failureReason,
+          txHash: params.signature,
+        },
+      });
+      return updated.count > 0;
+    },
+    {
+      maxWait: 10000, // 10 seconds max wait
+      timeout: 15000, // 15 seconds timeout
+    },
+  );
 
   if (result) {
     await updateCursor(params.signature);
@@ -47,60 +53,66 @@ const markPaymentFailed = async (params: {
 };
 
 const markPaymentCompleted = async (params: { payment: Payment; signature: string }) => {
-  const result = await prisma.$transaction(async (tx) => {
-    const existingByTxHash = await tx.payment.findUnique({
-      where: { txHash: params.signature },
-      select: { id: true },
-    });
-    if (existingByTxHash) return false;
-
-    const updated = await tx.payment.updateMany({
-      where: { id: params.payment.id, txHash: null },
-      data: {
-        status: PaymentStatus.completed,
-        txHash: params.signature,
-        completedAt: new Date(),
-        failureReason: null,
-      },
-    });
-    if (updated.count === 0) return false;
-
-    try {
-      await convertAndCredit(
-        params.payment.recipientUserId,
-        {
-          id: params.payment.id,
-          cryptoType: params.payment.cryptoType,
-          cryptoAmount: params.payment.cryptoAmount,
-          platformFeeAmount: params.payment.platformFeeAmount,
-          platformFeeCrypto: params.payment.platformFeeCrypto,
-          totalCryptoAmount: params.payment.totalCryptoAmount,
-          senderCurrency: params.payment.senderCurrency,
-          senderCurrencyAmount: params.payment.senderCurrencyAmount,
-          receiverCurrency: params.payment.receiverCurrency,
-          receiverCurrencyAmount: params.payment.receiverCurrencyAmount,
-          cryptoToSenderRate: params.payment.cryptoToSenderRate,
-          senderToReceiverRate: params.payment.senderToReceiverRate,
-          platformFeePercent: params.payment.platformFeePercent,
-          rateSource: params.payment.rateSource,
-          rateSnapshotAt: params.payment.rateSnapshotAt,
-          senderId: params.payment.senderId,
-          senderPublicKey: params.payment.senderPublicKey,
-          recipientUsername: params.payment.recipientUsername,
-        },
-        tx,
-      );
-    } catch (error) {
-      logger.error('Wallet credit failed after confirmed payment', {
-        paymentId: params.payment.id,
-        recipientUserId: params.payment.recipientUserId,
-        signature: params.signature,
-        error: error instanceof Error ? error.message : String(error),
+  const result = await prisma.$transaction(
+    async (tx) => {
+      const existingByTxHash = await tx.payment.findUnique({
+        where: { txHash: params.signature },
+        select: { id: true },
       });
-    }
+      if (existingByTxHash) return false;
 
-    return true;
-  });
+      const updated = await tx.payment.updateMany({
+        where: { id: params.payment.id, txHash: null },
+        data: {
+          status: PaymentStatus.completed,
+          txHash: params.signature,
+          completedAt: new Date(),
+          failureReason: null,
+        },
+      });
+      if (updated.count === 0) return false;
+
+      try {
+        await convertAndCredit(
+          params.payment.recipientUserId,
+          {
+            id: params.payment.id,
+            cryptoType: params.payment.cryptoType,
+            cryptoAmount: params.payment.cryptoAmount,
+            platformFeeAmount: params.payment.platformFeeAmount,
+            platformFeeCrypto: params.payment.platformFeeCrypto,
+            totalCryptoAmount: params.payment.totalCryptoAmount,
+            senderCurrency: params.payment.senderCurrency,
+            senderCurrencyAmount: params.payment.senderCurrencyAmount,
+            receiverCurrency: params.payment.receiverCurrency,
+            receiverCurrencyAmount: params.payment.receiverCurrencyAmount,
+            cryptoToSenderRate: params.payment.cryptoToSenderRate,
+            senderToReceiverRate: params.payment.senderToReceiverRate,
+            platformFeePercent: params.payment.platformFeePercent,
+            rateSource: params.payment.rateSource,
+            rateSnapshotAt: params.payment.rateSnapshotAt,
+            senderId: params.payment.senderId,
+            senderPublicKey: params.payment.senderPublicKey,
+            recipientUsername: params.payment.recipientUsername,
+          },
+          tx,
+        );
+      } catch (error) {
+        logger.error('Wallet credit failed after confirmed payment', {
+          paymentId: params.payment.id,
+          recipientUserId: params.payment.recipientUserId,
+          signature: params.signature,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      return true;
+    },
+    {
+      maxWait: 10000, // 10 seconds max wait
+      timeout: 15000, // 15 seconds timeout
+    },
+  );
 
   if (result) {
     await updateCursor(params.signature);

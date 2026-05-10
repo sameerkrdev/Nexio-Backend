@@ -23,7 +23,7 @@ const ensureToken = (cryptoType: string): TokenSymbol => {
 };
 
 const fetchJupiterRate = async (cryptoType: TokenSymbol): Promise<Decimal> => {
-  const response = await fetch(`https://price.jup.ag/v4/price?ids=${cryptoType}&vsToken=USDC`);
+  const response = await fetch(`https://api.jup.ag/price/v2?ids=${cryptoType}`);
   if (!response.ok) {
     throw new Error(`Jupiter unavailable: ${response.status}`);
   }
@@ -61,18 +61,12 @@ export const fetchCryptoRate = async (
   const senderCurrency = senderCurrencyInput.toUpperCase();
 
   try {
-    if (senderCurrency === 'USD') {
-      const usdRate = await withRetry(() => fetchJupiterRate(cryptoType));
-      return { rate: usdRate, rateSource: 'jupiter' };
-    }
-    await withRetry(() => fetchJupiterRate(cryptoType));
+    // Always use CoinGecko for reliability
     const fiatRate = await withRetry(() => fetchCoingeckoCryptoRate(cryptoType, senderCurrency));
     return { rate: fiatRate, rateSource: 'coingecko' };
-  } catch {
-    const fallbackRate = await withRetry(() =>
-      fetchCoingeckoCryptoRate(cryptoType, senderCurrency),
-    );
-    return { rate: fallbackRate, rateSource: 'coingecko' };
+  } catch (error) {
+    console.error('Crypto rate fetch failed:', error);
+    throw error;
   }
 };
 
@@ -92,15 +86,22 @@ export const fetchFiatRate = async (
     headers.Authorization = `Bearer ${env.FIAT_RATE_API_KEY}`;
   }
 
-  const response = await withRetry(() => fetch(url, { headers }));
-  if (!response.ok) {
-    throw new Error(`Fiat rate API unavailable: ${response.status}`);
-  }
+  try {
+    const response = await withRetry(() => fetch(url, { headers }));
+    if (!response.ok) {
+      console.error(`Fiat rate API error: ${response.status}`, await response.text());
+      throw new Error(`Fiat rate API unavailable: ${response.status}`);
+    }
 
-  const json = (await response.json()) as { rates?: Record<string, number | string> };
-  const raw = json.rates?.[toCurrency];
-  if (raw === undefined || raw === null) {
-    throw new Error('Fiat rate response missing rate');
+    const json = (await response.json()) as { rates?: Record<string, number | string> };
+    const raw = json.rates?.[toCurrency];
+    if (raw === undefined || raw === null) {
+      console.error('Fiat rate response missing rate:', json);
+      throw new Error('Fiat rate response missing rate');
+    }
+    return parseDecimal(raw);
+  } catch (error) {
+    console.error('Fiat rate fetch error:', error);
+    throw error;
   }
-  return parseDecimal(raw);
 };

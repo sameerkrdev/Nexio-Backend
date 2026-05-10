@@ -286,6 +286,7 @@ export const initiateWithdrawal = async (input: InitiateWithdrawalInput) => {
       deletedAt: null,
     },
   });
+
   if (!account) {
     throw createHttpError(404, 'Withdrawal account not found');
   }
@@ -305,101 +306,107 @@ export const initiateWithdrawal = async (input: InitiateWithdrawalInput) => {
 
   await checkDailyLimit(input.userId, amount, rail.currency);
 
-  const created = await prisma.$transaction(async (tx) => {
-    const accountInTx = await tx.withdrawalAccount.findFirst({
-      where: {
-        id: input.accountId,
-        userId: input.userId,
-        deletedAt: null,
-      },
-    });
-    if (!accountInTx) {
-      throw createHttpError(404, 'Withdrawal account not found');
-    }
+  const created = await prisma.$transaction(
+    async (tx) => {
+      const accountInTx = await tx.withdrawalAccount.findFirst({
+        where: {
+          id: input.accountId,
+          userId: input.userId,
+          deletedAt: null,
+        },
+      });
+      if (!accountInTx) {
+        throw createHttpError(404, 'Withdrawal account not found');
+      }
 
-    const wallet = await getOrCreateWallet(input.userId, tx);
-    await lockWalletRow(wallet.id, tx);
-    const currentWallet = await tx.wallet.findUniqueOrThrow({
-      where: { id: wallet.id },
-    });
-    if (currentWallet.status === 'frozen') {
-      throw createHttpError(403, 'Wallet is frozen');
-    }
-    if (currentWallet.status !== 'active') {
-      throw createHttpError(403, 'Wallet is not active');
-    }
+      const wallet = await getOrCreateWallet(input.userId, tx);
+      await lockWalletRow(wallet.id, tx);
+      const currentWallet = await tx.wallet.findUniqueOrThrow({
+        where: { id: wallet.id },
+      });
+      if (currentWallet.status === 'frozen') {
+        throw createHttpError(403, 'Wallet is frozen');
+      }
+      if (currentWallet.status !== 'active') {
+        throw createHttpError(403, 'Wallet is not active');
+      }
 
-    const walletBalance = new Decimal(currentWallet.balance.toString());
-    const reserved = new Decimal(currentWallet.reservedBalance.toString());
-    const available = walletBalance.sub(reserved);
-    if (available.lt(amount)) {
-      throw new InsufficientBalanceError('Insufficient balance');
-    }
+      const walletBalance = new Decimal(currentWallet.balance.toString());
+      const reserved = new Decimal(currentWallet.reservedBalance.toString());
+      const available = walletBalance.sub(reserved);
+      if (available.lt(amount)) {
+        throw new InsufficientBalanceError('Insufficient balance');
+      }
 
-    const fee = getWithdrawalFee(accountInTx.method, amount, currentWallet.currency);
-    const netAmount = amount.sub(fee.feeAmount);
-    if (netAmount.lte(0)) {
-      throw createHttpError(400, 'Net withdrawal amount must be greater than zero');
-    }
+      const fee = getWithdrawalFee(accountInTx.method, amount, currentWallet.currency);
+      const netAmount = amount.sub(fee.feeAmount);
+      if (netAmount.lte(0)) {
+        throw createHttpError(400, 'Net withdrawal amount must be greater than zero');
+      }
 
-    const title = generateTitle('debit', 'withdrawal_initiated', {
-      displayName: accountInTx.displayName,
-    });
-    const debitResult = await debitWallet(
-      {
-        userId: input.userId,
-        amount,
-        reason: 'withdrawal_initiated',
-        title,
-        description: input.note?.trim() || `Withdrawal to ${accountInTx.displayName}`,
-        referenceType: 'withdrawal',
-        referenceId: `init:${accountInTx.id}:${Date.now()}`,
-        metadata: {
+      const title = generateTitle('debit', 'withdrawal_initiated', {
+        displayName: accountInTx.displayName,
+      });
+      const debitResult = await debitWallet(
+        {
+          userId: input.userId,
+          amount,
+          reason: 'withdrawal_initiated',
+          title,
+          description: input.note?.trim() || `Withdrawal to ${accountInTx.displayName}`,
+          referenceType: 'withdrawal',
+          referenceId: `init:${accountInTx.id}:${Date.now()}`,
+          metadata: {
+            accountId: accountInTx.id,
+            method: accountInTx.method,
+          },
+        },
+        tx,
+      );
+
+      const withdrawal = await tx.withdrawal.create({
+        data: {
+          userId: input.userId,
+          walletId: currentWallet.id,
           accountId: accountInTx.id,
+          amount: toDecimalString(amount),
+          currency: currentWallet.currency,
+          feeAmount: toDecimalString(fee.feeAmount),
+          netAmount: toDecimalString(netAmount),
+          status: 'pending',
           method: accountInTx.method,
+          countryCode: accountInTx.countryCode,
+          providerName: accountInTx.providerName || 'mock',
+          isMocked: true,
+          estimatedArrival: methodEstimatedTime[accountInTx.method] ?? 'Within 1-3 business days',
+          walletTransactionId: debitResult.walletTransaction.id,
         },
-      },
-      tx,
-    );
-
-    const withdrawal = await tx.withdrawal.create({
-      data: {
-        userId: input.userId,
-        walletId: currentWallet.id,
-        accountId: accountInTx.id,
-        amount: toDecimalString(amount),
-        currency: currentWallet.currency,
-        feeAmount: toDecimalString(fee.feeAmount),
-        netAmount: toDecimalString(netAmount),
-        status: 'pending',
-        method: accountInTx.method,
-        countryCode: accountInTx.countryCode,
-        providerName: accountInTx.providerName || 'mock',
-        isMocked: true,
-        estimatedArrival: methodEstimatedTime[accountInTx.method] ?? 'Within 1-3 business days',
-        walletTransactionId: debitResult.walletTransaction.id,
-      },
-      include: {
-        account: {
-          select: { displayName: true },
+        include: {
+          account: {
+            select: { displayName: true },
+          },
         },
-      },
-    });
+      });
 
-    await tx.walletTransaction.update({
-      where: {
-        id: debitResult.walletTransaction.id,
-      },
-      data: {
-        referenceId: withdrawal.id,
-      },
-    });
+      await tx.walletTransaction.update({
+        where: {
+          id: debitResult.walletTransaction.id,
+        },
+        data: {
+          referenceId: withdrawal.id,
+        },
+      });
 
-    return {
-      withdrawal,
-      walletBalanceAfter: debitResult.wallet.balance.toString(),
-    };
-  });
+      return {
+        withdrawal,
+        walletBalanceAfter: debitResult.wallet.balance.toString(),
+      };
+    },
+    {
+      maxWait: 10000, // 10 seconds max wait time
+      timeout: 15000, // 15 seconds timeout
+    },
+  );
 
   void processWithdrawal(created.withdrawal.id).catch((error) => {
     logger.error('Failed to process withdrawal asynchronously', {

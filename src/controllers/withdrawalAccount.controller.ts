@@ -55,6 +55,7 @@ export const listWithdrawalAccountsController = async (
       throw createHttpError(401, 'Unauthorized');
     }
     const accounts = await listAccounts(req.user.userId);
+    // console.log('============ ACCOUNTS: ', JSON.parse(JSON.stringify(accounts)));
     return res.status(200).json({
       success: true,
       accounts,

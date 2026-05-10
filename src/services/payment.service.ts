@@ -104,7 +104,7 @@ const normalizeCryptoType = (cryptoType: string): TokenSymbol => {
 
 const normalizeCurrency = (value: string) => value.toUpperCase();
 
-const TOLERANCE = new Decimal('0.0005');
+const TOLERANCE = new Decimal('0.005'); // 0.5% tolerance for rounding differences
 
 const relativeDiff = (submitted: Decimal, expected: Decimal) => {
   if (expected.eq(0)) return submitted.abs();
@@ -119,6 +119,23 @@ const buildQuoteExpiredError = (
     relativeDiff: Decimal;
   }>,
 ) => {
+  // Log detailed mismatch info for debugging
+  console.error(
+    'Quote validation failed - mismatches:',
+    JSON.stringify(
+      mismatches.map((item) => ({
+        field: item.field,
+        submitted: item.submitted.toString(),
+        expected: item.expected.toString(),
+        difference: item.submitted.sub(item.expected).toString(),
+        relativeDiff: item.relativeDiff.mul(100).toFixed(4) + '%',
+        tolerance: TOLERANCE.mul(100).toFixed(4) + '%',
+      })),
+      null,
+      2,
+    ),
+  );
+
   throw createHttpError(
     400,
     'Quote has expired or amounts have changed. Please refresh and try again.',
@@ -149,7 +166,13 @@ const ensureRateServices = async (
       fetchFiatRate(senderCurrency, receiverCurrency),
     ]);
     return { liveCryptoRate, liveFiatRate, rateSource };
-  } catch {
+  } catch (error) {
+    logger.error('Rate service error', {
+      error: error instanceof Error ? error.message : String(error),
+      cryptoType,
+      senderCurrency,
+      receiverCurrency,
+    });
     throw createHttpError(503, 'Rate service unavailable, please try again');
   }
 };

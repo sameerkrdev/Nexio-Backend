@@ -4,6 +4,8 @@ import env from '../config/dotenv.config';
 import prisma from '../config/prisma.config';
 import { generateTitle } from '../utils/transactionTitle';
 import { getEntriesForWallet, recordEntry, type LedgerWalletFilters } from './ledger.service';
+import { sendPaymentReceivedNotification } from './notification.service';
+import { pushNotificationService } from './push-notification.service';
 import { Prisma } from '../generated/prisma/client';
 import type {
   Wallet,
@@ -382,6 +384,11 @@ export const convertAndCredit = async (
     select: { username: true, name: true },
   });
 
+  const recipient = await tx.user.findUnique({
+    where: { id: recipientUserId },
+    select: { phoneNumber: true },
+  });
+
   const senderUsername = sender?.username ?? 'unknown';
   const senderName = sender?.name ?? senderUsername;
 
@@ -440,6 +447,43 @@ export const convertAndCredit = async (
     },
     tx,
   );
+
+  // Send payment notification to recipient
+  if (recipient?.phoneNumber) {
+    // Send SMS notification asynchronously without blocking the transaction
+    setImmediate(() => {
+      sendPaymentReceivedNotification({
+        recipientPhone: recipient.phoneNumber,
+        senderName,
+        amount: localAmount.toFixed(2),
+        currency: payment.receiverCurrency,
+        cryptoAmount: String(payment.cryptoAmount),
+        cryptoType: payment.cryptoType,
+      });
+    });
+  }
+
+  // Send push notification to recipient
+  setImmediate(() => {
+    pushNotificationService.sendPaymentReceivedNotification({
+      userId: recipientUserId,
+      senderName,
+      amount: localAmount.toFixed(2),
+      currency: payment.receiverCurrency,
+      paymentId: payment.id,
+    });
+  });
+
+  // Send push notification to sender
+  setImmediate(() => {
+    pushNotificationService.sendPaymentSentNotification({
+      userId: payment.senderId,
+      recipientName: payment.recipientUsername,
+      amount: localAmount.toFixed(2),
+      currency: payment.receiverCurrency,
+      paymentId: payment.id,
+    });
+  });
 };
 
 const serializeTransaction = (txRecord: WalletTransaction) => ({

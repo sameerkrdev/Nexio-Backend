@@ -57,6 +57,7 @@ export const createWithdrawalController = async (
       amount: body.amount,
       note: body.note,
     });
+
     return res.status(201).json({
       success: true,
       data: withdrawal,
