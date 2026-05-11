@@ -89,7 +89,8 @@ export const fetchFiatRate = async (
   try {
     const response = await withRetry(() => fetch(url, { headers }));
     if (!response.ok) {
-      console.error(`Fiat rate API error: ${response.status}`, await response.text());
+      const errorText = await response.text();
+      console.error(`Fiat rate API error: ${response.status}`, errorText);
       throw new Error(`Fiat rate API unavailable: ${response.status}`);
     }
 
@@ -101,7 +102,11 @@ export const fetchFiatRate = async (
     }
     return parseDecimal(raw);
   } catch (error) {
-    console.error('Fiat rate fetch error:', error);
+    console.error('Fiat rate fetch error:', {
+      from: fromCurrency,
+      to: toCurrency,
+      error: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 };

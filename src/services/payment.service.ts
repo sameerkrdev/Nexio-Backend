@@ -268,6 +268,14 @@ export const createPayment = async (input: CreatePaymentInput) => {
   if (input.recipientType !== 'platform' && input.recipientType !== 'external') {
     throw createHttpError(400, 'recipientType must be platform or external.');
   }
+  console.log('🚀 Starting payment creation', {
+    userId: input.userId,
+    recipientType: input.recipientType,
+    recipientUsername: input.recipientUsername,
+    cryptoType: input.cryptoType,
+    senderCurrencyAmount: input.senderCurrencyAmount,
+    senderCurrency: input.senderCurrency,
+  });
   const cryptoType = normalizeCryptoType(input.cryptoType);
   const senderCurrency = normalizeCurrency(input.senderCurrency);
   const submittedReceiverCurrency = normalizeCurrency(input.receiverCurrency);
@@ -305,6 +313,13 @@ export const createPayment = async (input: CreatePaymentInput) => {
     input.platformFeePercent,
   );
 
+  console.log('📊 Parsed payment amounts', {
+    cryptoAmount: submittedCryptoAmount.toString(),
+    platformFeeAmount: submittedPlatformFeeAmount.toString(),
+    totalCryptoAmount: submittedTotalCryptoAmount.toString(),
+    senderCurrencyAmount: submittedSenderCurrencyAmount.toString(),
+  });
+
   if (submittedCryptoAmount.lte(0)) {
     throw createHttpError(400, 'cryptoAmount must be greater than 0.');
   }
@@ -319,7 +334,6 @@ export const createPayment = async (input: CreatePaymentInput) => {
   if (!sender) {
     throw createHttpError(404, 'Sender not found.');
   }
-
   if (!sender.solanaPublicKey) {
     throw createHttpError(400, 'Please set your wallet first.');
   }
@@ -411,6 +425,12 @@ export const createPayment = async (input: CreatePaymentInput) => {
     throw createHttpError(400, 'receiverCurrency does not match receiver-derived currency.');
   }
 
+  console.log('💱 Fetching live rates', {
+    cryptoType,
+    senderCurrency,
+    receiverCurrency,
+  });
+
   const { liveCryptoRate, liveFiatRate, rateSource } = await ensureRateServices(
     cryptoType,
     senderCurrency,
@@ -418,11 +438,25 @@ export const createPayment = async (input: CreatePaymentInput) => {
   );
   const platformFeePercent = new Decimal(env.PLATFORM_FEE_PERCENT);
 
+  console.log('📈 Live rates fetched', {
+    cryptoToSenderRate: liveCryptoRate.toString(),
+    senderToReceiverRate: liveFiatRate.toString(),
+    rateSource,
+    platformFeePercent: platformFeePercent.toString(),
+  });
+
   const expectedPlatformFeeAmount = submittedSenderCurrencyAmount.mul(platformFeePercent).div(100);
   const expectedPlatformFeeCrypto = expectedPlatformFeeAmount.div(liveCryptoRate);
   const expectedCryptoAmount = submittedSenderCurrencyAmount.div(liveCryptoRate);
   const expectedTotalCryptoAmount = expectedCryptoAmount.add(expectedPlatformFeeCrypto);
   const expectedReceiverAmount = submittedSenderCurrencyAmount.mul(liveFiatRate);
+
+  console.log('🔍 Validating quote amounts', {
+    expectedPlatformFeeAmount: expectedPlatformFeeAmount.toString(),
+    submittedPlatformFeeAmount: submittedPlatformFeeAmount.toString(),
+    expectedCryptoAmount: expectedCryptoAmount.toString(),
+    submittedCryptoAmount: submittedCryptoAmount.toString(),
+  });
 
   const checks = [
     {
@@ -466,12 +500,27 @@ export const createPayment = async (input: CreatePaymentInput) => {
   const mismatches = checks
     .map((check) => ({ ...check, relativeDiff: relativeDiff(check.submitted, check.expected) }))
     .filter((check) => check.relativeDiff.gt(TOLERANCE));
+
   if (mismatches.length > 0) {
+    console.error('❌ Quote validation failed', {
+      mismatches: mismatches.map((m) => ({
+        field: m.field,
+        submitted: m.submitted.toString(),
+        expected: m.expected.toString(),
+        difference: m.submitted.sub(m.expected).toString(),
+        relativeDiff: m.relativeDiff.mul(100).toFixed(4) + '%',
+        tolerance: TOLERANCE.mul(100).toFixed(4) + '%',
+      })),
+    });
     buildQuoteExpiredError(mismatches);
   }
 
+  console.log('✅ Quote validation passed');
+
   const senderPublicKey = ensureValidPublicKey(sender.solanaPublicKey);
   const expiresAt = new Date(Date.now() + env.PAYMENT_EXPIRES_IN_MINUTES * 60_000);
+
+  console.log('💾 Creating payment record in database');
 
   const payment = await prisma.payment.create({
     data: {
@@ -500,6 +549,14 @@ export const createPayment = async (input: CreatePaymentInput) => {
     },
   });
 
+  console.log('✅ Payment record created', {
+    paymentId: payment.id,
+    status: payment.status,
+    expiresAt: payment.expiresAt.toISOString(),
+  });
+
+  console.info('🔨 Building Solana transaction');
+
   const built = await buildPaymentTransaction({
     paymentId: payment.id,
     senderPublicKey,
@@ -507,11 +564,13 @@ export const createPayment = async (input: CreatePaymentInput) => {
     totalCryptoAmount: payment.totalCryptoAmount.toString(),
   });
 
-  logger.info('Payment created', {
+  logger.info('✅ Payment created successfully', {
     paymentId: payment.id,
     userId: sender.id,
     oldStatus: null,
     newStatus: PaymentStatus.pending,
+    totalCryptoAmount: payment.totalCryptoAmount.toString(),
+    cryptoType: payment.cryptoType,
   });
 
   return {

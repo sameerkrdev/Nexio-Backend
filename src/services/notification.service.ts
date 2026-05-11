@@ -22,7 +22,7 @@ export const sendPaymentReceivedNotification = async (
   params: PaymentNotificationParams,
 ): Promise<void> => {
   try {
-    const message = `[Nexio] Payment received! ${params.senderName} sent you ${params.amount} ${params.currency} (${params.cryptoAmount} ${params.cryptoType}). Check your wallet for details.`;
+    const message = `[NexaPay] Payment Received! ${params.senderName} sent you ${params.amount} ${params.currency} (${params.cryptoAmount} ${params.cryptoType}). Check your wallet for details.`;
 
     await client.messages.create({
       body: message,
