@@ -14,6 +14,7 @@ import type {
   WalletTransaction,
   WalletTransactionType,
 } from '../generated/prisma/client';
+import logger from '../config/logger.config';
 
 type TxClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 type WalletClientLike = Pick<TxClient, 'wallet'>;
@@ -370,8 +371,23 @@ export const convertAndCredit = async (
   payment: ConvertAndCreditPaymentInput,
   tx: TxClient,
 ): Promise<void> => {
+  logger.info('💰 Starting convertAndCredit', {
+    paymentId: payment.id,
+    recipientUserId,
+    cryptoType: payment.cryptoType,
+    cryptoAmount: String(payment.cryptoAmount),
+    receiverCurrencyAmount: String(payment.receiverCurrencyAmount),
+    receiverCurrency: payment.receiverCurrency,
+  });
+
   console.log('========== recipient user id:', recipientUserId);
   const recipientWallet = await getOrCreateWallet(recipientUserId, tx);
+  logger.info('✅ Recipient wallet retrieved', {
+    paymentId: payment.id,
+    walletId: recipientWallet.id,
+    currency: recipientWallet.currency,
+  });
+
   const localAmount = parseDecimal(payment.receiverCurrencyAmount);
   const feeInReceiverCurrency = parseDecimal(payment.platformFeeAmount).mul(
     parseDecimal(payment.senderToReceiverRate),
@@ -392,11 +408,25 @@ export const convertAndCredit = async (
   const senderUsername = sender?.username ?? 'unknown';
   const senderName = sender?.name ?? senderUsername;
 
+  logger.info('👥 Sender and recipient info retrieved', {
+    paymentId: payment.id,
+    senderUsername,
+    senderName,
+    recipientPhone: recipient?.phoneNumber ? 'present' : 'missing',
+  });
+
   const title = generateTitle('credit', 'payment_received', {
     localAmount,
     currency: recipientWallet.currency,
     cryptoAmount: payment.cryptoAmount,
     token: payment.cryptoType,
+  });
+
+  logger.info('💳 Crediting recipient wallet', {
+    paymentId: payment.id,
+    recipientUserId,
+    amount: localAmount.toString(),
+    currency: recipientWallet.currency,
   });
 
   await creditWallet(
@@ -432,6 +462,11 @@ export const convertAndCredit = async (
     tx,
   );
 
+  logger.info('✅ Recipient wallet credited successfully', {
+    paymentId: payment.id,
+    recipientUserId,
+  });
+
   const platformWallet = await getPlatformWallet(tx);
   await recordEntry(
     {
@@ -448,8 +483,19 @@ export const convertAndCredit = async (
     tx,
   );
 
+  logger.info('💰 Platform fee recorded', {
+    paymentId: payment.id,
+    feeAmount: feeInReceiverCurrency.toString(),
+    currency: payment.receiverCurrency,
+  });
+
   // Send payment notification to recipient
   if (recipient?.phoneNumber) {
+    logger.info('📱 Scheduling SMS notification to recipient', {
+      paymentId: payment.id,
+      recipientPhone: recipient.phoneNumber.substring(0, 5) + '***',
+    });
+
     // Send SMS notification asynchronously without blocking the transaction
     setImmediate(() => {
       sendPaymentReceivedNotification({
@@ -461,28 +507,64 @@ export const convertAndCredit = async (
         cryptoType: payment.cryptoType,
       });
     });
+  } else {
+    logger.warn('⚠️ No phone number for recipient, skipping SMS', {
+      paymentId: payment.id,
+      recipientUserId,
+    });
   }
 
   // Send push notification to recipient
+  logger.info('🔔 Scheduling push notification to recipient', {
+    paymentId: payment.id,
+    recipientUserId,
+  });
+
   setImmediate(() => {
-    pushNotificationService.sendPaymentReceivedNotification({
-      userId: recipientUserId,
-      senderName,
-      amount: localAmount.toFixed(2),
-      currency: payment.receiverCurrency,
-      paymentId: payment.id,
-    });
+    pushNotificationService
+      .sendPaymentReceivedNotification({
+        userId: recipientUserId,
+        senderName,
+        amount: localAmount.toFixed(2),
+        currency: payment.receiverCurrency,
+        paymentId: payment.id,
+      })
+      .catch((error) => {
+        logger.error('❌ Failed to send push notification to recipient', {
+          paymentId: payment.id,
+          recipientUserId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
   });
 
   // Send push notification to sender
+  logger.info('🔔 Scheduling push notification to sender', {
+    paymentId: payment.id,
+    senderId: payment.senderId,
+  });
+
   setImmediate(() => {
-    pushNotificationService.sendPaymentSentNotification({
-      userId: payment.senderId,
-      recipientName: payment.recipientUsername,
-      amount: localAmount.toFixed(2),
-      currency: payment.receiverCurrency,
-      paymentId: payment.id,
-    });
+    pushNotificationService
+      .sendPaymentSentNotification({
+        userId: payment.senderId,
+        recipientName: payment.recipientUsername,
+        amount: localAmount.toFixed(2),
+        currency: payment.receiverCurrency,
+        paymentId: payment.id,
+      })
+      .catch((error) => {
+        logger.error('❌ Failed to send push notification to sender', {
+          paymentId: payment.id,
+          senderId: payment.senderId,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      });
+  });
+
+  logger.info('✅ convertAndCredit completed successfully', {
+    paymentId: payment.id,
+    recipientUserId,
   });
 };
 
