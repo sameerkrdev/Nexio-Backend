@@ -111,6 +111,7 @@ model User {
   createdAt          DateTime            @default(now()) @map("created_at")
   refreshTokens      RefreshToken[]
   payments           Payment[]           @relation("SenderPayments")
+  receivedPayments   Payment[]           @relation("ReceiverPayments")
   wallet             Wallet?
   profile            UserProfile?
   withdrawalAccounts WithdrawalAccount[]
@@ -140,8 +141,12 @@ model Payment {
   id                     String        @id @default(cuid()) @map("id")
   senderId               String        @map("sender_id")
   sender                 User          @relation("SenderPayments", fields: [senderId], references: [id])
+  receiver               User?         @relation("ReceiverPayments", fields: [recipientUserId], references: [id])
   recipientUsername      String        @map("recipient_username")
-  recipientUserId        String        @map("recipient_user_id")
+  recipientType          String        @default("platform") @map("recipient_type")
+  recipientUserId        String?       @map("recipient_user_id")
+  externalRecipientId    String?       @map("external_recipient_id")
+  externalRecipient      ExternalRecipient? @relation(fields: [externalRecipientId], references: [id])
   senderPublicKey        String        @map("sender_public_key")
   status                 PaymentStatus @default(pending) @map("status")
   txHash                 String?       @unique @map("tx_hash")
@@ -167,7 +172,24 @@ model Payment {
   @@index([status, expiresAt])
   @@index([senderId])
   @@index([recipientUserId])
+  @@index([externalRecipientId])
   @@map("payments")
+}
+
+model ExternalRecipient {
+  id               String           @id @default(cuid()) @map("id")
+  phoneNumber      String           @map("phone_number")
+  countryCode      CountryCode      @map("country_code")
+  localCurrency    String           @map("local_currency")
+  method           WithdrawalMethod @map("method")
+  encryptedDetails String           @map("encrypted_details")
+  displayName      String           @map("display_name")
+  createdAt        DateTime         @default(now()) @map("created_at")
+
+  payments Payment[]
+
+  @@index([phoneNumber])
+  @@map("external_recipients")
 }
 
 model WebhookCursor {
@@ -242,8 +264,10 @@ model Withdrawal {
   user                User              @relation(fields: [userId], references: [id])
   walletId            String            @map("wallet_id")
   wallet              Wallet            @relation(fields: [walletId], references: [id])
-  accountId           String            @map("account_id")
-  account             WithdrawalAccount @relation(fields: [accountId], references: [id])
+  accountId           String?           @map("account_id")
+  account             WithdrawalAccount? @relation(fields: [accountId], references: [id])
+  externalPaymentId   String?           @unique @map("external_payment_id")
+  isExternalPayout    Boolean           @default(false) @map("is_external_payout")
   amount              Decimal           @map("amount")
   currency            String            @map("currency")
   feeAmount           Decimal           @default(0) @map("fee_amount")

@@ -76,4 +76,8 @@ export const validateStartupConfig = async () => {
     minAmountUsd: env.SWAP_MIN_AMOUNT_USD,
     maxRetries: env.SWAP_MAX_RETRIES,
   });
+
+  if (!env.TWILIO_ACCOUNT_SID || !env.TWILIO_AUTH_TOKEN || !env.TWILIO_PHONE_NUMBER) {
+    logger.warn('Twilio configuration missing. SMS notifications are disabled.');
+  }
 };

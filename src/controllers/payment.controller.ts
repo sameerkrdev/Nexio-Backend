@@ -27,7 +27,13 @@ export const createPaymentController = async (
     const body = req.body as CreatePaymentBody;
     const result = await createPayment({
       userId: req.user.userId,
-      recipientUsername: body.recipientUsername,
+      recipientType: body.recipientType,
+      recipientUsername: body.recipientType === 'platform' ? body.recipientUsername : undefined,
+      receiverPhone: body.recipientType === 'external' ? body.receiverPhone : undefined,
+      receiverPaymentMethod:
+        body.recipientType === 'external' ? body.receiverPaymentMethod : undefined,
+      receiverPaymentDetails:
+        body.recipientType === 'external' ? body.receiverPaymentDetails : undefined,
       cryptoType: body.cryptoType,
       cryptoAmount: body.cryptoAmount,
       platformFeeAmount: body.platformFeeAmount,
@@ -60,6 +66,7 @@ export const getPaymentQuoteController = async (
     const result = await getPaymentQuote({
       senderId: req.user.userId,
       receiverUsername: query.receiverUsername,
+      receiverPhone: query.receiverPhone,
       cryptoType: query.crypto,
       senderCurrency: query.senderCurrency,
     });

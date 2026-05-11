@@ -433,6 +433,16 @@ export const processWithdrawal = async (withdrawalId: string) => {
   if (!withdrawal || withdrawal.status !== 'pending') {
     return null;
   }
+  if (!withdrawal.account) {
+    await prisma.withdrawal.update({
+      where: { id: withdrawal.id },
+      data: {
+        status: 'failed',
+        failureReason: 'Withdrawal account is missing for internal payout',
+      },
+    });
+    return null;
+  }
 
   const provider = getProvider(withdrawal.providerName);
 

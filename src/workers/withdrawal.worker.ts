@@ -3,6 +3,21 @@ import logger from '../config/logger.config';
 import prisma from '../config/prisma.config';
 import { getProvider } from '../services/providers/provider.interface';
 import { refundWithdrawal } from '../services/withdrawal.service';
+import { sendSms } from '../services/twilio.service';
+
+const getCurrencySymbol = (currency: string): string => {
+  const symbols: Record<string, string> = {
+    INR: '₹',
+    USD: '$',
+    EUR: '€',
+    GBP: '£',
+    JPY: '¥',
+    SGD: '$',
+    AUD: '$',
+    CAD: '$',
+  };
+  return symbols[currency.toUpperCase()] ?? `${currency.toUpperCase()} `;
+};
 
 let intervalHandle: ReturnType<typeof setInterval> | null = null;
 
@@ -39,6 +54,20 @@ const runCycle = async () => {
               completedAt: new Date(),
             },
           });
+          if (withdrawal.isExternalPayout && withdrawal.externalPaymentId) {
+            const payment = await prisma.payment.findUnique({
+              where: { id: withdrawal.externalPaymentId },
+              include: { externalRecipient: true },
+            });
+            if (payment?.externalRecipient) {
+              sendSms(
+                payment.externalRecipient.phoneNumber,
+                `${getCurrencySymbol(payment.receiverCurrency)}${payment.receiverCurrencyAmount.toString()} has been deposited to your ${payment.externalRecipient.displayName} via Nexio.`,
+              ).catch(() => {
+                // sendSms already logs failures
+              });
+            }
+          }
           completedCount += 1;
           continue;
         }
@@ -51,7 +80,17 @@ const runCycle = async () => {
               failureReason: statusResult.failureReason ?? 'Provider reported failure',
             },
           });
-          await refundWithdrawal(withdrawal.id);
+          if (!withdrawal.isExternalPayout) {
+            await refundWithdrawal(withdrawal.id);
+          } else if (withdrawal.externalPaymentId) {
+            await prisma.payment.update({
+              where: { id: withdrawal.externalPaymentId },
+              data: {
+                failureReason:
+                  statusResult.failureReason ?? 'External payout failed at provider status check',
+              },
+            });
+          }
           failedCount += 1;
         }
       } catch (error) {

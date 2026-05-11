@@ -27,9 +27,9 @@ const env = cleanEnv(process.env, {
   JWT_ACCESS_EXPIRY: str({ default: '15m' }),
   JWT_REFRESH_EXPIRY_DAYS: str({ default: '30' }),
 
-  TWILIO_ACCOUNT_SID: str(),
-  TWILIO_AUTH_TOKEN: str(),
-  TWILIO_PHONE_NUMBER: str(),
+  TWILIO_ACCOUNT_SID: str({ default: '' }),
+  TWILIO_AUTH_TOKEN: str({ default: '' }),
+  TWILIO_PHONE_NUMBER: str({ default: '' }),
 
   // Helius + Solana
   HELIUS_API_KEY: str(),

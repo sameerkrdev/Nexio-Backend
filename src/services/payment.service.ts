@@ -1,6 +1,6 @@
 import createHttpError from 'http-errors';
 import Decimal from 'decimal.js';
-import { PaymentStatus } from '../generated/prisma/client';
+import { PaymentStatus, type WithdrawalMethod } from '../generated/prisma/client';
 import logger from '../config/logger.config';
 import prisma from '../config/prisma.config';
 import env from '../config/dotenv.config';
@@ -8,10 +8,18 @@ import { PublicKey } from '@solana/web3.js';
 import { buildPaymentTransaction } from './transaction.service';
 import { fetchCryptoRate, fetchFiatRate } from './quote.service';
 import { TOKENS, type TokenSymbol } from '../config/tokens';
+import { detectCountryFromPhone } from '../utils/countryDetect';
+import { getPaymentRail } from '../config/paymentRails';
+import { getProvider } from './providers/provider.interface';
+import { encryptAccountDetails } from '../utils/encryption';
 
 export interface CreatePaymentInput {
   userId: string;
-  recipientUsername: string;
+  recipientType: 'platform' | 'external';
+  recipientUsername?: string;
+  receiverPhone?: string;
+  receiverPaymentMethod?: WithdrawalMethod;
+  receiverPaymentDetails?: Record<string, unknown>;
   cryptoType: string;
   cryptoAmount: string;
   platformFeeAmount: string;
@@ -28,7 +36,8 @@ export interface CreatePaymentInput {
 
 interface PaymentQuoteInput {
   senderId: string;
-  receiverUsername: string;
+  receiverUsername?: string;
+  receiverPhone?: string;
   cryptoType: string;
   senderCurrency: string;
 }
@@ -45,7 +54,9 @@ const toClientPayment = (payment: {
   id: string;
   senderId: string;
   recipientUsername: string;
-  recipientUserId: string;
+  recipientType: string;
+  recipientUserId: string | null;
+  externalRecipientId: string | null;
   cryptoType: string;
   cryptoAmount: unknown;
   platformFeeAmount: unknown;
@@ -68,10 +79,29 @@ const toClientPayment = (payment: {
   completedAt: Date | null;
   failureReason: string | null;
   sender?: { username: string };
+  externalRecipient?: {
+    id: string;
+    phoneNumber: string;
+    method: string;
+    displayName: string;
+  } | null;
 }) => {
+  const maskedPhone = payment.externalRecipient?.phoneNumber
+    ? `${payment.externalRecipient.phoneNumber.slice(0, 3)}****${payment.externalRecipient.phoneNumber.slice(-4)}`
+    : null;
   return {
     ...payment,
     senderUsername: payment.sender?.username,
+    recipientType: payment.recipientType,
+    externalRecipientId: payment.externalRecipientId,
+    externalRecipient: payment.externalRecipient
+      ? {
+          id: payment.externalRecipient.id,
+          phoneMasked: maskedPhone,
+          method: payment.externalRecipient.method,
+          displayName: payment.externalRecipient.displayName,
+        }
+      : null,
     cryptoAmount: String(payment.cryptoAmount),
     platformFeeAmount: String(payment.platformFeeAmount),
     platformFeeCrypto: String(payment.platformFeeCrypto),
@@ -104,7 +134,7 @@ const normalizeCryptoType = (cryptoType: string): TokenSymbol => {
 
 const normalizeCurrency = (value: string) => value.toUpperCase();
 
-const TOLERANCE = new Decimal('0.005'); // 0.5% tolerance for rounding differences
+const TOLERANCE = new Decimal('0.0005');
 
 const relativeDiff = (submitted: Decimal, expected: Decimal) => {
   if (expected.eq(0)) return submitted.abs();
@@ -180,26 +210,41 @@ const ensureRateServices = async (
 export const getPaymentQuote = async (input: PaymentQuoteInput) => {
   const cryptoType = normalizeCryptoType(input.cryptoType);
   const senderCurrency = normalizeCurrency(input.senderCurrency);
-
-  const receiver = await prisma.user.findUnique({
-    where: { username: input.receiverUsername },
-    select: { id: true, username: true },
-  });
-  if (!receiver) {
-    throw createHttpError(404, 'Recipient not found.');
-  }
-  if (receiver.id === input.senderId) {
-    throw createHttpError(400, 'Sender and recipient cannot be the same user.');
+  const hasUsername = Boolean(input.receiverUsername);
+  const hasPhone = Boolean(input.receiverPhone);
+  if ((hasUsername && hasPhone) || (!hasUsername && !hasPhone)) {
+    throw createHttpError(400, 'Provide either receiverUsername or receiverPhone');
   }
 
-  const receiverWallet = await prisma.wallet.findUnique({
-    where: { userId: receiver.id },
-    select: { currency: true },
-  });
-  if (!receiverWallet) {
-    throw createHttpError(400, 'Receiver has no wallet profile configured.');
+  let receiverCurrency: string;
+  if (input.receiverPhone) {
+    const countryCode = detectCountryFromPhone(input.receiverPhone);
+    const rail = getPaymentRail(countryCode);
+    if (!rail) {
+      throw createHttpError(400, 'No payment rail available for receiver phone');
+    }
+    receiverCurrency = normalizeCurrency(rail.currency);
+  } else {
+    const receiver = await prisma.user.findUnique({
+      where: { username: input.receiverUsername! },
+      select: { id: true, username: true },
+    });
+    if (!receiver) {
+      throw createHttpError(404, 'Recipient not found.');
+    }
+    if (receiver.id === input.senderId) {
+      throw createHttpError(400, 'Sender and recipient cannot be the same user.');
+    }
+
+    const receiverWallet = await prisma.wallet.findUnique({
+      where: { userId: receiver.id },
+      select: { currency: true },
+    });
+    if (!receiverWallet) {
+      throw createHttpError(400, 'Receiver has no wallet profile configured.');
+    }
+    receiverCurrency = normalizeCurrency(receiverWallet.currency);
   }
-  const receiverCurrency = normalizeCurrency(receiverWallet.currency);
 
   const { liveCryptoRate, liveFiatRate, rateSource } = await ensureRateServices(
     cryptoType,
@@ -220,6 +265,9 @@ export const getPaymentQuote = async (input: PaymentQuoteInput) => {
 };
 
 export const createPayment = async (input: CreatePaymentInput) => {
+  if (input.recipientType !== 'platform' && input.recipientType !== 'external') {
+    throw createHttpError(400, 'recipientType must be platform or external.');
+  }
   const cryptoType = normalizeCryptoType(input.cryptoType);
   const senderCurrency = normalizeCurrency(input.senderCurrency);
   const submittedReceiverCurrency = normalizeCurrency(input.receiverCurrency);
@@ -266,36 +314,101 @@ export const createPayment = async (input: CreatePaymentInput) => {
 
   const sender = await prisma.user.findUnique({
     where: { id: input.userId },
-    select: { id: true, username: true, solanaPublicKey: true },
+    select: { id: true, username: true, solanaPublicKey: true, phoneNumber: true },
   });
   if (!sender) {
     throw createHttpError(404, 'Sender not found.');
   }
 
-  const recipient = await prisma.user.findUnique({
-    where: { username: input.recipientUsername },
-    select: { id: true, username: true, name: true },
-  });
-  if (!recipient) {
-    throw createHttpError(404, 'Recipient not found.');
-  }
-  if (recipient.id === sender.id || recipient.username === sender.username) {
-    throw createHttpError(400, 'Sender and recipient cannot be the same user.');
-  }
   if (!sender.solanaPublicKey) {
     throw createHttpError(400, 'Please set your wallet first.');
   }
 
-  const receiverWallet = await prisma.wallet.findUnique({
-    where: { userId: recipient.id },
-    select: { currency: true },
-  });
-  if (!receiverWallet) {
-    throw createHttpError(400, 'Receiver has no wallet profile configured.');
+  let recipientUserId: string | null = null;
+  // eslint-disable-next-line no-useless-assignment
+  let recipientUsername = '';
+  // eslint-disable-next-line no-useless-assignment
+  let recipientDisplayName = '';
+  let receiverCurrency: string;
+  let externalRecipientId: string | null = null;
+
+  if (input.recipientType === 'platform') {
+    if (!input.recipientUsername) {
+      throw createHttpError(400, 'recipientUsername is required for platform payments.');
+    }
+    const recipient = await prisma.user.findUnique({
+      where: { username: input.recipientUsername },
+      select: { id: true, username: true, name: true },
+    });
+    if (!recipient) {
+      throw createHttpError(404, 'Recipient not found.');
+    }
+    if (recipient.id === sender.id || recipient.username === sender.username) {
+      throw createHttpError(400, 'Sender and recipient cannot be the same user.');
+    }
+
+    const receiverWallet = await prisma.wallet.findUnique({
+      where: { userId: recipient.id },
+      select: { currency: true },
+    });
+    if (!receiverWallet) {
+      throw createHttpError(400, 'Receiver has no wallet profile configured.');
+    }
+
+    receiverCurrency = normalizeCurrency(receiverWallet.currency);
+    recipientUserId = recipient.id;
+    recipientUsername = recipient.username;
+    recipientDisplayName = recipient.name;
+  } else {
+    if (!input.receiverPhone || !input.receiverPaymentMethod || !input.receiverPaymentDetails) {
+      throw createHttpError(
+        400,
+        'receiverPhone, receiverPaymentMethod and receiverPaymentDetails are required for external payments.',
+      );
+    }
+
+    const countryCode = detectCountryFromPhone(input.receiverPhone);
+    const rail = getPaymentRail(countryCode);
+    if (!rail) {
+      throw createHttpError(400, 'No payment rail available for receiver phone');
+    }
+    receiverCurrency = normalizeCurrency(rail.currency);
+
+    if (!rail.methods.includes(input.receiverPaymentMethod)) {
+      throw createHttpError(
+        400,
+        `Method ${input.receiverPaymentMethod} not supported for ${countryCode}`,
+      );
+    }
+
+    const provider = getProvider('mock');
+    const validation = await provider.validateAccount(
+      input.receiverPaymentMethod,
+      input.receiverPaymentDetails,
+    );
+    if (!validation.valid) {
+      throw createHttpError(400, validation.error ?? 'Invalid receiver payment details');
+    }
+
+    const encryptedDetails = encryptAccountDetails(input.receiverPaymentDetails);
+    const externalRecipient = await prisma.externalRecipient.create({
+      data: {
+        phoneNumber: input.receiverPhone,
+        countryCode,
+        localCurrency: receiverCurrency,
+        method: input.receiverPaymentMethod,
+        encryptedDetails,
+        displayName: validation.displayName,
+      },
+    });
+
+    externalRecipientId = externalRecipient.id;
+    recipientUsername = input.receiverPhone;
+    recipientDisplayName = validation.displayName;
   }
-  const receiverCurrency = normalizeCurrency(receiverWallet.currency);
+
   if (submittedReceiverCurrency !== receiverCurrency) {
-    throw createHttpError(400, 'receiverCurrency does not match receiver wallet currency.');
+    throw createHttpError(400, 'receiverCurrency does not match receiver-derived currency.');
   }
 
   const { liveCryptoRate, liveFiatRate, rateSource } = await ensureRateServices(
@@ -363,8 +476,10 @@ export const createPayment = async (input: CreatePaymentInput) => {
   const payment = await prisma.payment.create({
     data: {
       senderId: sender.id,
-      recipientUsername: recipient.username,
-      recipientUserId: recipient.id,
+      recipientType: input.recipientType,
+      recipientUsername,
+      recipientUserId,
+      externalRecipientId,
       cryptoType,
       cryptoAmount: expectedCryptoAmount.toString(),
       platformFeeAmount: expectedPlatformFeeAmount.toString(),
@@ -401,7 +516,7 @@ export const createPayment = async (input: CreatePaymentInput) => {
 
   return {
     paymentId: payment.id,
-    recipientName: recipient.name,
+    recipientName: recipientDisplayName,
     totalCryptoAmount: payment.totalCryptoAmount.toString(),
     cryptoType: payment.cryptoType,
     receiverCurrencyAmount: payment.receiverCurrencyAmount.toString(),
@@ -465,6 +580,14 @@ export const paymentHistory = async (params: {
         sender: {
           select: {
             username: true,
+          },
+        },
+        externalRecipient: {
+          select: {
+            id: true,
+            phoneNumber: true,
+            method: true,
+            displayName: true,
           },
         },
       },

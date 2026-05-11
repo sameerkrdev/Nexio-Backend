@@ -8,6 +8,22 @@ import { parseMemoFromHeliusPayload, parseMemoFromRawTransaction } from '../util
 import { connection, getNexioPublicKey, withRpcRetry } from '../utils/solana';
 import { parseHeliusPayload, validatePaymentTransfer } from '../services/verification.service';
 import { convertAndCredit } from '../services/wallet.service';
+import { processExternalPayout } from '../services/externalPayout.service';
+import { sendSms } from '../services/twilio.service';
+
+const getCurrencySymbol = (currency: string): string => {
+  const symbols: Record<string, string> = {
+    INR: '₹',
+    USD: '$',
+    EUR: '€',
+    GBP: '£',
+    JPY: '¥',
+    SGD: '$',
+    AUD: '$',
+    CAD: '$',
+  };
+  return symbols[currency.toUpperCase()] ?? `${currency.toUpperCase()} `;
+};
 
 const updateCursor = async (signature: string) => {
   await prisma.webhookCursor.upsert({
@@ -73,30 +89,32 @@ const markPaymentCompleted = async (params: { payment: Payment; signature: strin
       if (updated.count === 0) return false;
 
       try {
-        await convertAndCredit(
-          params.payment.recipientUserId,
-          {
-            id: params.payment.id,
-            cryptoType: params.payment.cryptoType,
-            cryptoAmount: params.payment.cryptoAmount,
-            platformFeeAmount: params.payment.platformFeeAmount,
-            platformFeeCrypto: params.payment.platformFeeCrypto,
-            totalCryptoAmount: params.payment.totalCryptoAmount,
-            senderCurrency: params.payment.senderCurrency,
-            senderCurrencyAmount: params.payment.senderCurrencyAmount,
-            receiverCurrency: params.payment.receiverCurrency,
-            receiverCurrencyAmount: params.payment.receiverCurrencyAmount,
-            cryptoToSenderRate: params.payment.cryptoToSenderRate,
-            senderToReceiverRate: params.payment.senderToReceiverRate,
-            platformFeePercent: params.payment.platformFeePercent,
-            rateSource: params.payment.rateSource,
-            rateSnapshotAt: params.payment.rateSnapshotAt,
-            senderId: params.payment.senderId,
-            senderPublicKey: params.payment.senderPublicKey,
-            recipientUsername: params.payment.recipientUsername,
-          },
-          tx,
-        );
+        if (params.payment.recipientType === 'platform' && params.payment.recipientUserId) {
+          await convertAndCredit(
+            params.payment.recipientUserId,
+            {
+              id: params.payment.id,
+              cryptoType: params.payment.cryptoType,
+              cryptoAmount: params.payment.cryptoAmount,
+              platformFeeAmount: params.payment.platformFeeAmount,
+              platformFeeCrypto: params.payment.platformFeeCrypto,
+              totalCryptoAmount: params.payment.totalCryptoAmount,
+              senderCurrency: params.payment.senderCurrency,
+              senderCurrencyAmount: params.payment.senderCurrencyAmount,
+              receiverCurrency: params.payment.receiverCurrency,
+              receiverCurrencyAmount: params.payment.receiverCurrencyAmount,
+              cryptoToSenderRate: params.payment.cryptoToSenderRate,
+              senderToReceiverRate: params.payment.senderToReceiverRate,
+              platformFeePercent: params.payment.platformFeePercent,
+              rateSource: params.payment.rateSource,
+              rateSnapshotAt: params.payment.rateSnapshotAt,
+              senderId: params.payment.senderId,
+              senderPublicKey: params.payment.senderPublicKey,
+              recipientUsername: params.payment.recipientUsername,
+            },
+            tx,
+          );
+        }
       } catch (error) {
         logger.error('Wallet credit failed after confirmed payment', {
           paymentId: params.payment.id,
@@ -196,6 +214,9 @@ export const heliusWebhookHandler = async (req: Request, res: Response): Promise
       console.log('🔍 Looking up payment with ID:', memo);
       const payment = await prisma.payment.findUnique({
         where: { id: memo },
+        include: {
+          externalRecipient: true,
+        },
       });
 
       console.log('💳 Payment found:', payment ? 'YES' : 'NO');
@@ -253,6 +274,22 @@ export const heliusWebhookHandler = async (req: Request, res: Response): Promise
         payment,
         signature: tx.signature,
       });
+
+      if (payment.recipientType === 'external' && payment.externalRecipient) {
+        processExternalPayout(payment.id).catch((error) => {
+          logger.error('External payout failed', {
+            paymentId: payment.id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        });
+
+        sendSms(
+          payment.externalRecipient.phoneNumber,
+          `You've received ${getCurrencySymbol(payment.receiverCurrency)}${payment.receiverCurrencyAmount.toString()} via Nexio. It will be deposited to your ${payment.externalRecipient.method} account shortly.`,
+        ).catch(() => {
+          // sendSms already logs failures
+        });
+      }
 
       console.log('🎉 PAYMENT COMPLETED SUCCESSFULLY');
       logger.info('Payment status changed', {
