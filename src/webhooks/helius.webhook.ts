@@ -285,7 +285,7 @@ export const heliusWebhookHandler = async (req: Request, res: Response): Promise
 
         sendSms(
           payment.externalRecipient.phoneNumber,
-          `You've received ${getCurrencySymbol(payment.receiverCurrency)}${payment.receiverCurrencyAmount.toString()} via Nexio. It will be deposited to your ${payment.externalRecipient.method} account shortly.`,
+          `You've received ${getCurrencySymbol(payment.receiverCurrency)}${payment.receiverCurrencyAmount.toString()} via Nexapay. It will be deposited to your ${payment.externalRecipient.method} account shortly.`,
         ).catch(() => {
           // sendSms already logs failures
         });

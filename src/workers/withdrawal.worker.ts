@@ -62,7 +62,7 @@ const runCycle = async () => {
             if (payment?.externalRecipient) {
               sendSms(
                 payment.externalRecipient.phoneNumber,
-                `${getCurrencySymbol(payment.receiverCurrency)}${payment.receiverCurrencyAmount.toString()} has been deposited to your ${payment.externalRecipient.displayName} via Nexio.`,
+                `${getCurrencySymbol(payment.receiverCurrency)}${payment.receiverCurrencyAmount.toString()} has been deposited to your ${payment.externalRecipient.displayName} via NexaPay.`,
               ).catch(() => {
                 // sendSms already logs failures
               });

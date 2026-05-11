@@ -14,6 +14,35 @@ type RateSource = 'jupiter' | 'coingecko';
 
 const parseDecimal = (value: string | number) => new Decimal(String(value));
 
+// In-memory rate cache. The same rate is returned for repeated lookups within
+// QUOTE_EXPIRES_IN_SECONDS, so the rate the quote endpoint hands to the client
+// is the SAME rate the payment-initiate endpoint validates against. Without
+// this, two back-to-back upstream calls return slightly different numbers
+// (CoinGecko re-aggregates server-side; FX feeds tick), which makes the strict
+// quote-validation throw "quote expired" even on fresh user submissions.
+const CACHE_TTL_MS = env.QUOTE_EXPIRES_IN_SECONDS * 1000;
+
+interface CachedRate<T> {
+  value: T;
+  expiresAt: number;
+}
+
+const cache = new Map<string, CachedRate<unknown>>();
+
+const getCached = <T>(key: string): T | null => {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.value as T;
+};
+
+const setCached = <T>(key: string, value: T): void => {
+  cache.set(key, { value, expiresAt: Date.now() + CACHE_TTL_MS });
+};
+
 const ensureToken = (cryptoType: string): TokenSymbol => {
   const normalized = cryptoType.toUpperCase() as TokenSymbol;
   if (!(normalized in TOKENS)) {
@@ -59,10 +88,17 @@ export const fetchCryptoRate = async (
 ): Promise<{ rate: Decimal; rateSource: RateSource }> => {
   const cryptoType = ensureToken(cryptoTypeInput);
   const senderCurrency = senderCurrencyInput.toUpperCase();
+  const cacheKey = `crypto:${cryptoType}:${senderCurrency}`;
+
+  const cached = getCached<{ rate: string; rateSource: RateSource }>(cacheKey);
+  if (cached) {
+    return { rate: parseDecimal(cached.rate), rateSource: cached.rateSource };
+  }
 
   try {
     // Always use CoinGecko for reliability
     const fiatRate = await withRetry(() => fetchCoingeckoCryptoRate(cryptoType, senderCurrency));
+    setCached(cacheKey, { rate: fiatRate.toString(), rateSource: 'coingecko' as RateSource });
     return { rate: fiatRate, rateSource: 'coingecko' };
   } catch (error) {
     console.error('Crypto rate fetch failed:', error);
@@ -78,6 +114,12 @@ export const fetchFiatRate = async (
   const toCurrency = toCurrencyInput.toUpperCase();
   if (fromCurrency === toCurrency) {
     return new Decimal(1);
+  }
+
+  const cacheKey = `fiat:${fromCurrency}:${toCurrency}`;
+  const cached = getCached<string>(cacheKey);
+  if (cached) {
+    return parseDecimal(cached);
   }
 
   const url = `${env.FIAT_RATE_API_URL}/latest?from=${fromCurrency}&to=${toCurrency}`;
@@ -100,7 +142,9 @@ export const fetchFiatRate = async (
       console.error('Fiat rate response missing rate:', json);
       throw new Error('Fiat rate response missing rate');
     }
-    return parseDecimal(raw);
+    const rate = parseDecimal(raw);
+    setCached(cacheKey, rate.toString());
+    return rate;
   } catch (error) {
     console.error('Fiat rate fetch error:', {
       from: fromCurrency,

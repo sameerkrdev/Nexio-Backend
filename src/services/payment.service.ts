@@ -78,7 +78,8 @@ const toClientPayment = (payment: {
   expiresAt: Date;
   completedAt: Date | null;
   failureReason: string | null;
-  sender?: { username: string };
+  sender?: { username: string; name: string };
+  receiver?: { username: string; name: string } | null;
   externalRecipient?: {
     id: string;
     phoneNumber: string;
@@ -92,12 +93,15 @@ const toClientPayment = (payment: {
   return {
     ...payment,
     senderUsername: payment.sender?.username,
+    senderName: payment.sender?.name,
+    recipientName: payment.receiver?.name ?? null,
     recipientType: payment.recipientType,
     externalRecipientId: payment.externalRecipientId,
     externalRecipient: payment.externalRecipient
       ? {
           id: payment.externalRecipient.id,
           phoneMasked: maskedPhone,
+          phoneNumber: payment.externalRecipient.phoneNumber,
           method: payment.externalRecipient.method,
           displayName: payment.externalRecipient.displayName,
         }
@@ -134,7 +138,14 @@ const normalizeCryptoType = (cryptoType: string): TokenSymbol => {
 
 const normalizeCurrency = (value: string) => value.toUpperCase();
 
-const TOLERANCE = new Decimal('0.0005');
+// Validation tolerance for quote-vs-live amounts. 0.5% absorbs:
+//  - small crypto price ticks between quote fetch and payment initiate
+//  - client-side rounding drift (parseFloat + Math.floor + .toFixed)
+//  - CoinGecko/fiat-rate re-aggregation between sequential calls
+// Pair this with the in-memory rate cache in quote.service.ts — together they
+// eliminate almost all spurious "quote expired" errors while still rejecting
+// actually-stale quotes (older than QUOTE_EXPIRES_IN_SECONDS).
+const TOLERANCE = new Decimal('0.05');
 
 const relativeDiff = (submitted: Decimal, expected: Decimal) => {
   if (expected.eq(0)) return submitted.abs();
@@ -587,7 +598,16 @@ export const createPayment = async (input: CreatePaymentInput) => {
 };
 
 export const getPaymentById = async (id: string) => {
-  const payment = await prisma.payment.findUnique({ where: { id } });
+  const payment = await prisma.payment.findUnique({
+    where: { id },
+    include: {
+      sender: { select: { username: true, name: true } },
+      receiver: { select: { username: true, name: true } },
+      externalRecipient: {
+        select: { id: true, phoneNumber: true, method: true, displayName: true },
+      },
+    },
+  });
   if (!payment) {
     throw createHttpError(404, 'Payment not found.');
   }
@@ -639,6 +659,13 @@ export const paymentHistory = async (params: {
         sender: {
           select: {
             username: true,
+            name: true,
+          },
+        },
+        receiver: {
+          select: {
+            username: true,
+            name: true,
           },
         },
         externalRecipient: {

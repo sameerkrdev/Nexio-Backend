@@ -1,10 +1,11 @@
-import type { Request, Response } from 'express';
+import type { Response } from 'express';
 import { pushNotificationService, NotificationType } from '../services/push-notification.service';
 import logger from '../config/logger.config';
+import type { AuthenticatedRequest } from '../types/auth.type';
 
-export const registerPushToken = async (req: Request, res: Response) => {
+export const registerPushToken = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user?.userId;
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
@@ -36,9 +37,9 @@ export const registerPushToken = async (req: Request, res: Response) => {
   }
 };
 
-export const unregisterPushToken = async (req: Request, res: Response) => {
+export const unregisterPushToken = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user?.userId;
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
@@ -66,9 +67,9 @@ export const unregisterPushToken = async (req: Request, res: Response) => {
   }
 };
 
-export const sendTestNotification = async (req: Request, res: Response) => {
+export const sendTestNotification = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user?.userId;
     if (!userId) {
       return res.status(401).json({ success: false, message: 'Unauthorized' });
     }
