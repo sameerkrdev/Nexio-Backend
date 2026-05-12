@@ -14,7 +14,6 @@ import type {
   WithdrawalIdParams,
   WithdrawalListQuery,
 } from '../zodSchema/withdrawal.schema';
-
 const toHttpError = (error: unknown) => {
   if (error instanceof DailyLimitExceededError) {
     return createHttpError(429, error.message);

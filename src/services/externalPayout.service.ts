@@ -4,6 +4,7 @@ import prisma from '../config/prisma.config';
 import env from '../config/dotenv.config';
 import { getProvider } from './providers/provider.interface';
 import { getOrCreateWallet } from './wallet.service';
+import { getPaymentRail } from '../config/paymentRails';
 
 export const processExternalPayout = async (paymentId: string): Promise<void> => {
   const payment = await prisma.payment.findUnique({
@@ -25,7 +26,11 @@ export const processExternalPayout = async (paymentId: string): Promise<void> =>
     return;
   }
 
-  const provider = getProvider('mock');
+  // Pick the provider from the rail config — keeps this code path provider-agnostic
+  // and lets different methods/countries route to different real providers later.
+  const rail = getPaymentRail(payment.externalRecipient.countryCode);
+  const providerName = rail?.providers[payment.externalRecipient.method] ?? 'mock';
+  const provider = getProvider(providerName);
 
   try {
     const result = await provider.submitPayout({
@@ -52,13 +57,16 @@ export const processExternalPayout = async (paymentId: string): Promise<void> =>
         status: 'processing',
         method: payment.externalRecipient.method,
         countryCode: payment.externalRecipient.countryCode,
-        providerName: 'mock',
+        providerName,
         providerReference: result.providerReference,
         providerResponse: {
           stage: 'submit',
           providerReference: result.providerReference,
           estimatedArrival: result.estimatedArrival,
         },
+        // 'dodo' currently delegates to mock under the hood, so payouts via dodo
+        // are still simulated. Flip this to `providerName === 'mock'` once Dodo
+        // (or any provider) is wired to a real disbursement API.
         isMocked: true,
         mockCompletesAt: result.mockCompletesAt,
         estimatedArrival: result.estimatedArrival,

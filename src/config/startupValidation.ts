@@ -57,6 +57,18 @@ export const validateStartupConfig = async () => {
   validateUrl(env.JUPITER_API_URL, 'JUPITER_API_URL');
   validateUrl(env.JUPITER_PRICE_API_URL, 'JUPITER_PRICE_API_URL');
   validateSwapConfig();
+
+  // Dodo Payments config — log what we see at boot so missing env vars are
+  // obvious before the first /wallet/top-up or /withdrawals/dodo-init request.
+  const maskedDodoKey = env.DODO_API_KEY
+    ? `${env.DODO_API_KEY.slice(0, 4)}…${env.DODO_API_KEY.slice(-4)}`
+    : '<unset>';
+  logger.info('[Dodo] startup config', {
+    apiKey: maskedDodoKey,
+    baseUrl: env.DODO_API_BASE_URL,
+    topupProductId: env.DODO_TOPUP_PRODUCT_ID || '<unset>',
+    webhookKeySet: Boolean(env.DODO_WEBHOOK_KEY),
+  });
   if (env.SWAP_ENABLED) {
     getNexioKeypair();
     await validateJupiterReachable();

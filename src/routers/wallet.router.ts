@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  createWalletTopUpController,
   getMyWalletController,
   getWalletTransactionByIdController,
   listWalletTransactionsController,
@@ -14,6 +15,8 @@ import {
 const walletRouter = Router();
 
 walletRouter.get('/me', verifyAccessTokenMiddleware, getMyWalletController);
+
+walletRouter.post('/top-up', verifyAccessTokenMiddleware, createWalletTopUpController);
 
 walletRouter.get(
   '/transactions',

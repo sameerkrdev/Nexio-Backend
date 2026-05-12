@@ -72,6 +72,35 @@ const env = cleanEnv(process.env, {
   // Wallet encryption
   WALLET_ENCRYPTION_KEY: str(),
 
+  // Dodo Payments — currently used for the 'dodo' payout provider (delegates to
+  // mock internally) and the /webhooks/dodo endpoint. Both are optional so the
+  // server still boots in dev when these aren't set; signature verification on
+  // the webhook will fail closed (401) until DODO_WEBHOOK_KEY is provided.
+  DODO_API_KEY: str({ default: '' }),
+  DODO_WEBHOOK_KEY: str({ default: '' }),
+  // Sandbox: https://test.dodopayments.com  | Production: https://live.dodopayments.com
+  DODO_API_BASE_URL: str({ default: 'https://test.dodopayments.com' }),
+  // Reject webhooks whose timestamp is more than this many seconds away from now
+  // — protects against replay of captured-then-replayed events.
+  DODO_WEBHOOK_TOLERANCE_SECONDS: num({ default: 300 }),
+  // Product ID created in the Dodo dashboard for the wallet top-up SKU.
+  // MUST be a "single-time" / one-time product (used with POST /payments).
+  // Required when POST /wallet/top-up is hit; empty default lets the server boot.
+  DODO_TOPUP_PRODUCT_ID: str({ default: '' }),
+
+  // Product ID for the NexaPay Premium subscription.
+  // MUST be a "subscription" / recurring product in the Dodo dashboard (used
+  // with POST /subscriptions). Distinct from DODO_TOPUP_PRODUCT_ID because
+  // one-time and subscription products are different SKU types in Dodo.
+  DODO_SUBSCRIPTION_PRODUCT_ID: str({ default: '' }),
+
+  // Subscription display metadata — used only when the subscription is first
+  // initialized (Dodo's real billing period drives the actual expiry via the
+  // subscription.active webhook's next_billing_date).
+  SUBSCRIPTION_PRICE: num({ default: 199 }),
+  SUBSCRIPTION_CURRENCY: str({ default: 'INR' }),
+  SUBSCRIPTION_DURATION_DAYS: num({ default: 30 }),
+
   // Withdrawal fees
   WITHDRAWAL_FEE_IMPS: num({ default: 5 }),
   WITHDRAWAL_FEE_NEFT: num({ default: 5 }),

@@ -14,7 +14,6 @@ import type {
   PaymentIdParams,
   PaymentQuoteQuery,
 } from '../zodSchema/payment.schema';
-
 export const createPaymentController = async (
   req: AuthenticatedRequest,
   res: Response,

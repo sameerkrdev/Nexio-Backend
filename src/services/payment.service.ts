@@ -406,7 +406,11 @@ export const createPayment = async (input: CreatePaymentInput) => {
       );
     }
 
-    const provider = getProvider('mock');
+    // Pick the provider from the rail config so different methods/countries can
+    // be routed to different providers (e.g. dodo for India, something else for US).
+    // Falls back to 'mock' if no provider is mapped for the method.
+    const providerName = rail.providers[input.receiverPaymentMethod] ?? 'mock';
+    const provider = getProvider(providerName);
     const validation = await provider.validateAccount(
       input.receiverPaymentMethod,
       input.receiverPaymentDetails,

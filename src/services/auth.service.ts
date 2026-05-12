@@ -292,6 +292,7 @@ export const getMe = async (userId: string) => {
       name: true,
       phoneNumber: true,
       solanaPublicKey: true,
+      subscriptionExpiresAt: true,
       createdAt: true,
       email: true,
       wallet: {
@@ -307,5 +308,12 @@ export const getMe = async (userId: string) => {
     throw createHttpError(404, 'User not found.');
   }
 
-  return user;
+  const now = Date.now();
+  const isPremium = !!user.subscriptionExpiresAt && user.subscriptionExpiresAt.getTime() > now;
+
+  return {
+    ...user,
+    subscriptionExpiresAt: user.subscriptionExpiresAt?.toISOString() ?? null,
+    isPremium,
+  };
 };
